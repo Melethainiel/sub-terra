@@ -5,15 +5,16 @@ namespace SubTerra.Core.Setup;
 
 /// <summary>
 /// Lays out the fixed pieces: the Entrance on the edge of the table with a Lateral
-/// tile either side. Everything else is drawn from the bag during play.
+/// arm either side. Everything else is drawn from the bag during play.
 /// </summary>
 /// <remarks>
-/// The cell coordinates come from the setup diagram (rulebook p. 8) and are still to
-/// be confirmed against the physical components — see docs/regles.md §13.2.
+/// Shapes and make-up are dictated in docs/tuiles.md. The Lateral arms are not tiles
+/// of their own — each is two Normal T tiles ending in a Guardian dead end, and no
+/// Guardian stands there at setup.
 /// </remarks>
 public static class TempleSetup
 {
-    /// <summary>Where every Explorer starts, and the cell that joins the two Laterals.</summary>
+    /// <summary>Where every explorer starts. A crossroads: the temple opens south of it.</summary>
     public static readonly Cell EntranceCrossing = new(3, 0);
 
     /// <summary>Step onto this cell to leave the Temple for good.</summary>
@@ -28,9 +29,7 @@ public static class TempleSetup
         var board = new TempleBoard(bounds);
 
         board.PlaceFixed(EntranceExit, Fixed("Entrance-Exit", TileKind.Entrance, Sides.South));
-        board.PlaceFixed(
-            EntranceCrossing,
-            Fixed("Entrance-Crossing", TileKind.Entrance, Sides.North | Sides.East | Sides.West));
+        board.PlaceFixed(EntranceCrossing, Fixed("Entrance-Crossing", TileKind.Entrance, Sides.All));
 
         PlaceLateral(board, WestLateral, "West");
         PlaceLateral(board, EastLateral, "East");
@@ -43,40 +42,30 @@ public static class TempleSetup
         for (var index = 0; index < cells.Count; index++)
         {
             var cell = cells[index];
+            var eastward = RunsOn(cells, cell, Direction.East);
+            var westward = RunsOn(cells, cell, Direction.West);
 
-            // The strip runs east-west and opens south into the temple. Its outer end
-            // is a Guardian cell, though no Guardian stands there at setup.
-            var isOuterEnd = index == 0 || index == cells.Count - 1;
-            var kind = isOuterEnd && !JoinsCrossing(cell) ? TileKind.Guardian : TileKind.Lateral;
-
-            var openSides = Sides.South;
-            if (RunsOn(cells, cell, Direction.East))
+            // The arm ends where it stops running: a Guardian pocket facing back in.
+            var tile = (eastward, westward) switch
             {
-                openSides |= Sides.East;
-            }
+                (true, false) => Fixed($"Lateral-{side}-{index}", TileKind.Guardian, Sides.East),
+                (false, true) => Fixed($"Lateral-{side}-{index}", TileKind.Guardian, Sides.West),
+                _ => Fixed($"Lateral-{side}-{index}", TileKind.Normal, Sides.East | Sides.West | Sides.South),
+            };
 
-            if (RunsOn(cells, cell, Direction.West))
-            {
-                openSides |= Sides.West;
-            }
-
-            board.PlaceFixed(cell, Fixed($"Lateral-{side}-{index}", kind, openSides));
+            board.PlaceFixed(cell, tile);
         }
     }
 
     /// <summary>
-    /// Whether the strip continues in that direction — either another Lateral cell or
-    /// the Entrance crossing. The outer ends stay walled: nothing lies beyond them.
+    /// Whether the arm continues that way — another of its cells, or the Entrance
+    /// crossing. Beyond its ends there is nothing.
     /// </summary>
     private static bool RunsOn(IReadOnlyList<Cell> cells, Cell cell, Direction direction)
     {
         var neighbour = cell.Neighbour(direction);
         return cells.Contains(neighbour) || neighbour == EntranceCrossing;
     }
-
-    private static bool JoinsCrossing(Cell cell) =>
-        cell.Neighbour(Direction.East) == EntranceCrossing
-        || cell.Neighbour(Direction.West) == EntranceCrossing;
 
     /// <summary>
     /// Builds a setup piece from the passages it must offer, working back to the

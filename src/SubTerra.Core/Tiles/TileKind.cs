@@ -16,6 +16,5 @@ public enum TileKind
     Journal,
 
     Entrance,
-    Lateral,
     Sanctuary,
 }

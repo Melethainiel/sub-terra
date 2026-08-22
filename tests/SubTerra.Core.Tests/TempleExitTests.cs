@@ -82,7 +82,8 @@ public class TempleExitTests
 
         Assert.All(exits, exit => Assert.Equal(Direction.South, exit.Direction));
 
-        // One per Lateral cell; the Entrance crossing is walled east and west by them.
-        Assert.Equal(6, exits.Count);
+        // The four Normal cells of the arms, plus the Entrance crossroads itself.
+        // The Guardian pockets at the far ends open inward only.
+        Assert.Equal(5, exits.Count);
     }
 }

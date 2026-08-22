@@ -25,13 +25,24 @@ référence : la forme est décrite non tournée, la rotation est choisie à la 
 Soit **30 tuiles** dans le sac. Cette composition tombe sur les mêmes effectifs
 par type que le livret ; ce sont les tracés qui nous appartiennent.
 
+## Les pièces multiples
+
+| Pièce | Composition |
+|---|---|
+| **Entrée** | Un cul-de-sac (la sortie du temple) + une **croix** placée au centre, où démarrent les Explorateurs. Le temple s'ouvre au sud de cette croix. |
+| **Latérale** (×2) | Deux tuiles **Normale en T** + un **Gardien en cul-de-sac** à l'extrémité extérieure. Aucun Gardien n'y est placé en début de partie. |
+| **Sanctuaire** | Une tuile **en couloir** où déposer les trois Clés + un **cul-de-sac** contenant l'Artefact. |
+
+Les Latérales ne sont donc pas un type de tuile à part : elles sont faites de
+tuiles Normale et Gardien.
+
 ## Encore à définir
 
-- Les tuiles multiples : Entrée, Latérales, Sanctuaire.
 - La tuile Journal (réservée à l'Aristocrate).
 
 ## État de l'implémentation
 
-Les scènes de `scenes/board/` portent la **géométrie et l'apparence** de ces onze
-tuiles. Aucun de leurs **effets** n'est encore implémenté : le moteur ne connaît
-pour l'instant que le tracé et le type.
+Les scènes de `scenes/board/` portent la géométrie et l'apparence de toutes ces
+tuiles. Côté moteur, seuls sont implémentés les effets **à la pose** — la Clé
+apparaît, le Gardien surgit — et l'occupation unique du **Pont**. Lave, pièges,
+effondrement et réveil des Gardiens attendent le dé de Péril.
