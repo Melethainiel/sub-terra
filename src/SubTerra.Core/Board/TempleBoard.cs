@@ -156,6 +156,67 @@ public sealed class TempleBoard
     }
 
     /// <summary>
+    /// The way from <paramref name="origin"/> to the nearest tile that satisfies
+    /// <paramref name="isTarget"/>, walking only connected tiles, or <c>null</c> if
+    /// none can be reached. The origin is not included; the target is, even if
+    /// <paramref name="passable"/> would refuse to route through it.
+    /// </summary>
+    /// <remarks>
+    /// Ties are broken by the order <see cref="ConnectedNeighbours"/> yields, which is
+    /// north, east, south, west — deterministic, so a replay follows the same path.
+    /// </remarks>
+    public IReadOnlyList<Cell>? ShortestPath(
+        Cell origin,
+        Func<Cell, bool> isTarget,
+        Func<Cell, bool>? passable = null)
+    {
+        var cameFrom = new Dictionary<Cell, Cell>();
+        var visited = new HashSet<Cell> { origin };
+        var frontier = new Queue<Cell>();
+        frontier.Enqueue(origin);
+
+        while (frontier.Count > 0)
+        {
+            var cell = frontier.Dequeue();
+
+            foreach (var neighbour in ConnectedNeighbours(cell))
+            {
+                if (!visited.Add(neighbour))
+                {
+                    continue;
+                }
+
+                cameFrom[neighbour] = cell;
+
+                if (isTarget(neighbour))
+                {
+                    return Retrace(cameFrom, origin, neighbour);
+                }
+
+                if (passable is null || passable(neighbour))
+                {
+                    frontier.Enqueue(neighbour);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static List<Cell> Retrace(Dictionary<Cell, Cell> cameFrom, Cell origin, Cell target)
+    {
+        var path = new List<Cell>();
+
+        for (var cell = target; cell != origin; cell = cameFrom[cell])
+        {
+            path.Add(cell);
+        }
+
+        path.Reverse();
+        return path;
+    }
+
+    /// <summary>
     /// Whether <paramref name="tile"/>, sitting on <paramref name="cell"/>, would join
     /// up with whatever occupies <paramref name="from"/>.
     /// </summary>

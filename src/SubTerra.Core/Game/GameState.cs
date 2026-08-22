@@ -20,9 +20,27 @@ public sealed class GameState
 
     public const int SpikeTrapDamage = 3;
 
+    public const int DartTrapDamage = 1;
+
+    public const int LavaDamage = 1;
+
+    public const int CollapseDamage = 5;
+
+    public const int GuardianDamage = 1;
+
+    /// <summary>Roll this or better to cut a guardian down.</summary>
+    public const int AttackSuccessRoll = 4;
+
+    /// <summary>Five meeples in the box; a sixth guardian never appears.</summary>
+    public const int MaxGuardians = 5;
+
+    /// <summary>The temple's own turn, at the end of every round.</summary>
+    public const int GuardianActivationsPerRound = 2;
+
     private readonly List<Explorer> _explorers;
     private readonly Dictionary<Cell, List<ItemKind>> _items = [];
     private readonly List<Cell> _guardians = [];
+    private readonly HashSet<Cell> _rubble = [];
 
     private int _current;
     private bool _bagAnnouncedEmpty;
@@ -67,6 +85,9 @@ public sealed class GameState
     /// <summary>Where the Ashen Legion currently stands. One cell may hold several.</summary>
     public IReadOnlyList<Cell> Guardians => _guardians;
 
+    /// <summary>Tiles blocked by fallen rock. Nobody walks in until it is dug out.</summary>
+    public IReadOnlySet<Cell> Rubble => _rubble;
+
     public Explorer CurrentExplorer => _explorers[_current];
 
     public int ActionPoints { get; private set; }
@@ -88,6 +109,8 @@ public sealed class GameState
         Heal heal => ExecuteHeal(heal),
         PickUpItem pickUp => ExecutePickUp(pickUp),
         DropItem => ExecuteDrop(),
+        Attack => ExecuteAttack(),
+        Dig dig => ExecuteDig(dig),
         Overexert => ExecuteOverexert(),
         EndTurn => ExecuteEndTurn(),
         _ => CommandResult.Reject($"Commande inconnue : {command.GetType().Name}."),
@@ -167,6 +190,11 @@ public sealed class GameState
             return $"{target} n'est pas reliée à {from}.";
         }
 
+        if (_rubble.Contains(target))
+        {
+            return $"{target} est bloquée par un Éboulis.";
+        }
+
         // A bridge takes one explorer's weight at a time.
         if (Board.TileAt(target)?.Kind == TileKind.Bridge
             && ExplorersOn(target).Any(other => other != explorer))
@@ -181,6 +209,18 @@ public sealed class GameState
     {
         var from = explorer.Cell;
         var target = from.Neighbour(direction);
+
+        // Turning your back on a guardian costs a heart each. Even a last heart:
+        // the explorer collapses on the tile they were heading for.
+        var pursuers = _guardians.Count(guardian => guardian == from);
+
+        if (pursuers > 0)
+        {
+            foreach (var wound in Wound(explorer, pursuers))
+            {
+                yield return wound;
+            }
+        }
 
         explorer.Cell = target;
         yield return new ExplorerMoved(explorer.Id, from, target);
@@ -207,11 +247,39 @@ public sealed class GameState
             yield break;
         }
 
+        foreach (var consequence in SpringSpikes(cell))
+        {
+            yield return consequence;
+        }
+    }
+
+    /// <summary>The spikes take every explorer on the tile, not only the one who trod on them.</summary>
+    private IEnumerable<GameEvent> SpringSpikes(Cell cell)
+    {
         yield return new TrapSprung(cell, TileKind.SpikeTrap);
 
-        foreach (var wound in Wound(explorer, SpikeTrapDamage))
+        foreach (var victim in ExplorersOn(cell).ToList())
         {
-            yield return wound;
+            foreach (var wound in Wound(victim, SpikeTrapDamage))
+            {
+                yield return wound;
+            }
+        }
+    }
+
+    /// <summary>Darts rake the tile and everything connected to it.</summary>
+    private IEnumerable<GameEvent> SpringDarts(Cell cell)
+    {
+        yield return new TrapSprung(cell, TileKind.DartTrap);
+
+        var swept = Board.ConnectedNeighbours(cell).Append(cell);
+
+        foreach (var victim in swept.SelectMany(ExplorersOn).ToList())
+        {
+            foreach (var wound in Wound(victim, DartTrapDamage))
+            {
+                yield return wound;
+            }
         }
     }
 
@@ -272,8 +340,17 @@ public sealed class GameState
                 break;
 
             case TileKind.Guardian:
-                _guardians.Add(cell);
-                yield return new GuardianAppeared(cell);
+                if (_guardians.Count < MaxGuardians)
+                {
+                    _guardians.Add(cell);
+                    yield return new GuardianAppeared(cell);
+                }
+
+                break;
+
+            case TileKind.Ruins:
+                _rubble.Add(cell);
+                yield return new RubbleAppeared(cell);
                 break;
         }
     }
@@ -408,6 +485,67 @@ public sealed class GameState
         return CommandResult.Accept(new ItemDropped(explorer.Id, item, explorer.Cell));
     }
 
+    private CommandResult ExecuteAttack()
+    {
+        if (RequireActive() is { } down)
+        {
+            return CommandResult.Reject(down);
+        }
+
+        if (ActionPoints < 1)
+        {
+            return CommandResult.Reject("Plus de point d'action.");
+        }
+
+        var cell = CurrentExplorer.Cell;
+
+        if (!_guardians.Contains(cell))
+        {
+            return CommandResult.Reject($"Aucun ennemi sur {cell}.");
+        }
+
+        ActionPoints--;
+
+        var roll = Rng.RollDie();
+        var events = new List<GameEvent> { new DieRolled(roll) };
+
+        if (roll >= AttackSuccessRoll)
+        {
+            _guardians.Remove(cell);
+            events.Add(new GuardianEliminated(cell));
+        }
+
+        return new CommandResult(true, null, events);
+    }
+
+    private CommandResult ExecuteDig(Dig dig)
+    {
+        if (RequireActive() is { } down)
+        {
+            return CommandResult.Reject(down);
+        }
+
+        if (ActionPoints < 2)
+        {
+            return CommandResult.Reject("Creuser coûte deux points d'action.");
+        }
+
+        var cell = CurrentExplorer.Cell;
+
+        if (dig.Cell != cell && !Board.AreConnected(cell, dig.Cell))
+        {
+            return CommandResult.Reject($"{dig.Cell} n'est ni votre tuile ni une voisine reliée.");
+        }
+
+        if (!_rubble.Remove(dig.Cell))
+        {
+            return CommandResult.Reject($"Pas d'Éboulis sur {dig.Cell}.");
+        }
+
+        ActionPoints -= 2;
+        return CommandResult.Accept(new RubbleCleared(dig.Cell));
+    }
+
     /// <summary>Why a downed explorer cannot do this, or <c>null</c> if they are up.</summary>
     private string? RequireActive() =>
         CurrentExplorer.IsDown ? "À terre, un Explorateur ne peut que ramper." : null;
@@ -459,9 +597,214 @@ public sealed class GameState
         }
     }
 
+    /// <summary>
+    /// The temple's answer to a player's turn. Rolled once at the end of it — twice
+    /// once the Artefact is out of the sanctuary, which is not implemented yet.
+    /// </summary>
+    private IEnumerable<GameEvent> ResolvePeril(Explorer explorer)
+    {
+        var face = Rng.RollPeril();
+        yield return new PerilRolled(face);
+
+        var consequences = face switch
+        {
+            PerilFace.Stumble => Stumble(explorer),
+            PerilFace.Lava => Burn(),
+            PerilFace.Collapse => Collapse(),
+            PerilFace.Trap => SpringTrapsAround(explorer),
+            PerilFace.WakeGuardian => WakeGuardian(explorer),
+            PerilFace.ActivateGuardians => ActivateGuardians(),
+            _ => [],
+        };
+
+        foreach (var consequence in consequences)
+        {
+            yield return consequence;
+        }
+    }
+
+    /// <summary>Pushing yourself has a price, and it is collected later.</summary>
+    private IEnumerable<GameEvent> Stumble(Explorer explorer) =>
+        HasOverexerted ? Wound(explorer, 1) : [];
+
+    private IEnumerable<GameEvent> Burn()
+    {
+        var burning = _explorers
+            .Where(explorer => Board.TileAt(explorer.Cell)?.Kind == TileKind.Lava)
+            .ToList();
+
+        foreach (var explorer in burning)
+        {
+            foreach (var wound in Wound(explorer, LavaDamage))
+            {
+                yield return wound;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Each Ruins tile is printed with a die face. Roll it and that ruin comes down —
+    /// but a ruin already buried cannot fall twice.
+    /// </summary>
+    private IEnumerable<GameEvent> Collapse()
+    {
+        var standing = Board.Tiles
+            .Where(entry => entry.Value.Kind == TileKind.Ruins && !_rubble.Contains(entry.Key))
+            .ToList();
+
+        if (standing.Count == 0)
+        {
+            yield break;
+        }
+
+        var roll = Rng.RollDie();
+        yield return new DieRolled(roll);
+
+        var doomed = standing
+            .Where(entry => entry.Value.Definition.RuinsNumber == roll)
+            .Select(entry => entry.Key)
+            .ToList();
+
+        foreach (var cell in doomed)
+        {
+            _rubble.Add(cell);
+            yield return new RuinsCollapsed(cell);
+            yield return new RubbleAppeared(cell);
+
+            // Rock does not care who it lands on.
+            foreach (var crushed in ExplorersOn(cell).ToList())
+            {
+                foreach (var wound in Wound(crushed, CollapseDamage))
+                {
+                    yield return wound;
+                }
+            }
+
+            for (var index = _guardians.Count - 1; index >= 0; index--)
+            {
+                if (_guardians[index] == cell)
+                {
+                    _guardians.RemoveAt(index);
+                    yield return new GuardianEliminated(cell);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Only the traps near the explorer whose turn it is go off, and several may go
+    /// off at once.
+    /// </summary>
+    private IEnumerable<GameEvent> SpringTrapsAround(Explorer explorer)
+    {
+        var here = explorer.Cell;
+
+        if (Board.TileAt(here)?.Kind == TileKind.SpikeTrap)
+        {
+            foreach (var consequence in SpringSpikes(here))
+            {
+                yield return consequence;
+            }
+        }
+
+        var darts = Board.ConnectedNeighbours(here).Append(here)
+            .Where(cell => Board.TileAt(cell)?.Kind == TileKind.DartTrap)
+            .ToList();
+
+        foreach (var cell in darts)
+        {
+            foreach (var consequence in SpringDarts(cell))
+            {
+                yield return consequence;
+            }
+        }
+    }
+
+    private IEnumerable<GameEvent> WakeGuardian(Explorer explorer)
+    {
+        if (_guardians.Count >= MaxGuardians)
+        {
+            yield break;
+        }
+
+        var path = Board.ShortestPath(
+            explorer.Cell,
+            cell => Board.TileAt(cell)?.Kind == TileKind.Guardian);
+
+        // The explorer may already be standing in a guardian pocket.
+        var cell = Board.TileAt(explorer.Cell)?.Kind == TileKind.Guardian
+            ? explorer.Cell
+            : path?.LastOrDefault();
+
+        if (cell is not { } woken)
+        {
+            yield break;
+        }
+
+        _guardians.Add(woken);
+        yield return new GuardianAppeared(woken);
+    }
+
+    /// <summary>Every guardian in play takes one action, in the order they appeared.</summary>
+    private IEnumerable<GameEvent> ActivateGuardians()
+    {
+        for (var index = 0; index < _guardians.Count; index++)
+        {
+            foreach (var action in ActivateGuardian(index))
+            {
+                yield return action;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The first thing on the list it can do: strike, close in, or dig. Ties that the
+    /// rules hand to the expedition leader are settled here by board order instead —
+    /// deterministic, and a decision to revisit when the leader can be asked.
+    /// </summary>
+    private IEnumerable<GameEvent> ActivateGuardian(int index)
+    {
+        var cell = _guardians[index];
+
+        if (ExplorersOn(cell).FirstOrDefault(explorer => !explorer.IsDown) is { } prey)
+        {
+            yield return new GuardianAttacked(cell, prey.Id);
+
+            foreach (var wound in Wound(prey, GuardianDamage))
+            {
+                yield return wound;
+            }
+
+            yield break;
+        }
+
+        var path = Board.ShortestPath(
+            cell,
+            target => ExplorersOn(target).Any(explorer => !explorer.IsDown),
+            target => !_rubble.Contains(target));
+
+        if (path is [var next, ..] && !_rubble.Contains(next))
+        {
+            _guardians[index] = next;
+            yield return new GuardianStepped(cell, next);
+            yield break;
+        }
+
+        foreach (var neighbour in Board.ConnectedNeighbours(cell))
+        {
+            if (_rubble.Remove(neighbour))
+            {
+                yield return new GuardianClearedRubble(cell, neighbour);
+                yield break;
+            }
+        }
+    }
+
     private CommandResult ExecuteEndTurn()
     {
-        var events = new List<GameEvent> { new TurnEnded(CurrentExplorer.Id) };
+        var events = new List<GameEvent>();
+        events.AddRange(ResolvePeril(CurrentExplorer));
+        events.Add(new TurnEnded(CurrentExplorer.Id));
 
         _current++;
 
@@ -470,6 +813,12 @@ public sealed class GameState
             _current = 0;
             Round++;
             events.Add(new RoundEnded(Round));
+
+            // The temple takes its own turn once everyone has taken theirs.
+            for (var activation = 0; activation < GuardianActivationsPerRound; activation++)
+            {
+                events.AddRange(ActivateGuardians());
+            }
         }
 
         // A downed explorer can only crawl: one tile, and nothing else.

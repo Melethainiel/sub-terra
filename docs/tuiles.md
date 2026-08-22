@@ -43,13 +43,29 @@ tuiles Normale et Gardien.
 ## État de l'implémentation
 
 Les scènes de `scenes/board/` portent la géométrie et l'apparence de toutes ces
-tuiles. Côté moteur sont implémentés : les effets **à la pose** (la Clé apparaît, le
-Gardien surgit), l'occupation unique du **Pont**, le **piège à pics** déclenché
-en entrant, et le **ramassage de la Clé**. Lave, fléchettes, effondrement et
-réveil des Gardiens attendent le dé de Péril.
+tuiles. Côté moteur, **les onze effets sont joués** : le Pont ne supporte qu'un
+Explorateur, la Clé se ramasse, le Gardien surgit à la pose, les Ruines arrivent
+sous leurs éboulis et s'effondrent sur leur chiffre, la Lave brûle sur la face
+Flamme, les pics se déclenchent à l'entrée et sur la face Piège, les fléchettes
+balaient la tuile et ses voisines reliées.
 
-**Point à trancher — piège à pics.** Ta spec dit « un joueur lance 1d6, sur 4+
-rien sinon 3 PV en moins ». J'ai implémenté à la lettre : seul l'Explorateur qui
-entre lance et encaisse. Le livret, lui, fait perdre 3 ♥ à *tous* les
-Explorateurs présents sur la tuile quand le piège se déclenche. Dis-moi lequel
-tu veux.
+### Écarts assumés par rapport à ta dictée
+
+Ta spec ne disait rien de ces points ; j'ai suivi le livret et je les signale
+plutôt que de les enterrer.
+
+- **Ruines** — elles arrivent avec un marqueur Éboulis qui interdit d'y entrer
+  tant qu'on n'a pas Creusé. Ta dictée ne parlait que des 5 ♥ perdus lors de
+  l'effondrement.
+- **Piège à pics** — désormais tous les Explorateurs présents sur la tuile
+  perdent 3 ♥, comme tu l'as confirmé.
+- **Départager les égalités** — le livret confie au Chef d'Expédition le choix
+  de la cible d'un Gardien et de sa direction. Le moteur tranche pour l'instant
+  par l'ordre du plateau (nord, est, sud, ouest), ce qui est déterministe. À
+  reprendre le jour où on saura poser la question au Chef.
+
+## Encore à définir
+
+- La tuile Journal (réservée à l'Aristocrate).
+- La piste d'Éruption, le retournement du plateau Volcan et la coulée de lave.
+- Le dépôt des Clés au Sanctuaire, l'Artefact, la malédiction et la victoire.

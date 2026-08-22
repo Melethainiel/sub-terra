@@ -36,6 +36,12 @@ public sealed record PickUpItem(ItemKind Item) : GameCommand;
 /// <summary>Put down what you are carrying. 1 action.</summary>
 public sealed record DropItem : GameCommand;
 
+/// <summary>Roll to kill one enemy on your tile: 4 or better does it. 1 action.</summary>
+public sealed record Attack : GameCommand;
+
+/// <summary>Clear the rubble from your tile or a connected neighbour. 2 actions.</summary>
+public sealed record Dig(Cell Cell) : GameCommand;
+
 /// <summary>Spend a heart for an extra action. Once per player turn.</summary>
 public sealed record Overexert : GameCommand;
 

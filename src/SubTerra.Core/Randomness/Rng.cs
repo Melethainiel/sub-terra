@@ -46,6 +46,9 @@ public sealed class Rng
     /// <summary>Rolls the plain d6 used by Attack, Spike Traps and Collapse.</summary>
     public int RollDie(int sides = 6) => Next(sides) + 1;
 
+    /// <summary>Rolls the Peril die.</summary>
+    public Game.PerilFace RollPeril() => (Game.PerilFace)Next(6);
+
     private ulong NextUInt64()
     {
         var z = _state += GoldenGamma;

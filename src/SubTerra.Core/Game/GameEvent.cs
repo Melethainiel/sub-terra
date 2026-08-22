@@ -24,6 +24,22 @@ public sealed record ItemAppeared(Cell Cell, ItemKind Item) : GameEvent;
 
 public sealed record GuardianAppeared(Cell Cell) : GameEvent;
 
+public sealed record PerilRolled(PerilFace Face) : GameEvent;
+
+public sealed record GuardianAttacked(Cell Cell, ExplorerId Explorer) : GameEvent;
+
+public sealed record GuardianStepped(Cell From, Cell To) : GameEvent;
+
+public sealed record GuardianClearedRubble(Cell Guardian, Cell Cleared) : GameEvent;
+
+public sealed record GuardianEliminated(Cell Cell) : GameEvent;
+
+public sealed record RubbleAppeared(Cell Cell) : GameEvent;
+
+public sealed record RubbleCleared(Cell Cell) : GameEvent;
+
+public sealed record RuinsCollapsed(Cell Cell) : GameEvent;
+
 public sealed record ItemPickedUp(ExplorerId Explorer, ItemKind Item, Cell Cell) : GameEvent;
 
 public sealed record ItemDropped(ExplorerId Explorer, ItemKind Item, Cell Cell) : GameEvent;
