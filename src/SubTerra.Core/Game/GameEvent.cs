@@ -20,9 +20,22 @@ public sealed record ExplorerMoved(ExplorerId Explorer, Cell From, Cell To) : Ga
 
 public sealed record TileRevealed(Cell Cell, TileDefinition Tile, int Rotation) : GameEvent;
 
-public sealed record KeyAppeared(Cell Cell) : GameEvent;
+public sealed record ItemAppeared(Cell Cell, ItemKind Item) : GameEvent;
 
 public sealed record GuardianAppeared(Cell Cell) : GameEvent;
+
+public sealed record ItemPickedUp(ExplorerId Explorer, ItemKind Item, Cell Cell) : GameEvent;
+
+public sealed record ItemDropped(ExplorerId Explorer, ItemKind Item, Cell Cell) : GameEvent;
+
+/// <summary>A die was rolled in the open, and everyone saw the face.</summary>
+public sealed record DieRolled(int Face) : GameEvent;
+
+public sealed record TrapSprung(Cell Cell, TileKind Trap) : GameEvent;
+
+public sealed record HealthRegained(ExplorerId Explorer, int Amount, int Total) : GameEvent;
+
+public sealed record ExplorerStoodUp(ExplorerId Explorer) : GameEvent;
 
 public sealed record HealthLost(ExplorerId Explorer, int Amount, int Remaining) : GameEvent;
 

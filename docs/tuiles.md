@@ -43,6 +43,13 @@ tuiles Normale et Gardien.
 ## État de l'implémentation
 
 Les scènes de `scenes/board/` portent la géométrie et l'apparence de toutes ces
-tuiles. Côté moteur, seuls sont implémentés les effets **à la pose** — la Clé
-apparaît, le Gardien surgit — et l'occupation unique du **Pont**. Lave, pièges,
-effondrement et réveil des Gardiens attendent le dé de Péril.
+tuiles. Côté moteur sont implémentés : les effets **à la pose** (la Clé apparaît, le
+Gardien surgit), l'occupation unique du **Pont**, le **piège à pics** déclenché
+en entrant, et le **ramassage de la Clé**. Lave, fléchettes, effondrement et
+réveil des Gardiens attendent le dé de Péril.
+
+**Point à trancher — piège à pics.** Ta spec dit « un joueur lance 1d6, sur 4+
+rien sinon 3 PV en moins ». J'ai implémenté à la lettre : seul l'Explorateur qui
+entre lance et encaisse. Le livret, lui, fait perdre 3 ♥ à *tous* les
+Explorateurs présents sur la tuile quand le piège se déclenche. Dis-moi lequel
+tu veux.

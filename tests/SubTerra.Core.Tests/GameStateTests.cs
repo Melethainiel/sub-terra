@@ -107,8 +107,8 @@ public class GameStateTests
         var result = game.Execute(new Reveal(Direction.South, Rotation: 0));
 
         Assert.True(result.Accepted);
-        Assert.Contains(new KeyAppeared(target), result.Events);
-        Assert.Contains(target, game.KeyTokens);
+        Assert.Contains(new ItemAppeared(target, ItemKind.Key), result.Events);
+        Assert.Equal([ItemKind.Key], game.ItemsOn(target));
     }
 
     [Fact]

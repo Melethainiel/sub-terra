@@ -27,6 +27,9 @@ public sealed class Explorer(ExplorerId id, string name, int maxHealth, Cell cel
     /// <summary>Down, not dead: a single heart puts them back on their feet.</summary>
     public bool IsDown => Health == 0;
 
+    /// <summary>What they are carrying, if anything. Never more than one thing.</summary>
+    public ItemKind? Carried { get; internal set; }
+
     /// <summary>Returns how many hearts were actually lost.</summary>
     internal int Wound(int amount)
     {

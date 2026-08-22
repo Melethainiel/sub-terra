@@ -18,6 +18,24 @@ public sealed record Move(Direction Direction) : GameCommand;
 /// </summary>
 public sealed record Reveal(Direction Direction, int Rotation) : GameCommand;
 
+/// <summary>
+/// Reveal a tile and step onto it in one action — quicker than doing both, and a
+/// good deal more dangerous, since you walk onto whatever you just uncovered.
+/// </summary>
+public sealed record Explore(Direction Direction, int Rotation) : GameCommand;
+
+/// <summary>Up to three moves for two actions.</summary>
+public sealed record Run(IReadOnlyList<Direction> Steps) : GameCommand;
+
+/// <summary>Give an explorer on your tile a heart back — yourself included. 1 action.</summary>
+public sealed record Heal(ExplorerId Target) : GameCommand;
+
+/// <summary>Take something off your tile. 1 action.</summary>
+public sealed record PickUpItem(ItemKind Item) : GameCommand;
+
+/// <summary>Put down what you are carrying. 1 action.</summary>
+public sealed record DropItem : GameCommand;
+
 /// <summary>Spend a heart for an extra action. Once per player turn.</summary>
 public sealed record Overexert : GameCommand;
 

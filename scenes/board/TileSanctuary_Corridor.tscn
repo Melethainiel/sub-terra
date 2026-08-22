@@ -17,8 +17,8 @@ size = Vector3(0.5, 1.5, 1.0)
 size = Vector3(0.5, 1.5, 1.0)
 
 [sub_resource type="CylinderMesh" id="Cyl_sigil"]
-top_radius = 0.36
-bottom_radius = 0.36
+top_radius = 0.16
+bottom_radius = 0.16
 height = 0.04
 radial_segments = 24
 
@@ -61,7 +61,17 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, 0.0)
 mesh = SubResource("Box_West")
 material_override = ExtResource("wall_rock")
 
-[node name="KeySlots" type="MeshInstance3D" parent="."]
+[node name="KeySlot_0" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.02, -0.42)
+mesh = SubResource("Cyl_sigil")
+material_override = ExtResource("sigil_key")
+
+[node name="KeySlot_1" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.02, 0.0)
+mesh = SubResource("Cyl_sigil")
+material_override = ExtResource("sigil_key")
+
+[node name="KeySlot_2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.02, 0.42)
 mesh = SubResource("Cyl_sigil")
 material_override = ExtResource("sigil_key")

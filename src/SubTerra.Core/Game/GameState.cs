@@ -15,8 +15,13 @@ public sealed class GameState
     /// <summary>Two actions a turn; a third can be bought with a heart.</summary>
     public const int ActionsPerTurn = 2;
 
+    /// <summary>Step onto the spikes and roll this or better to walk away unhurt.</summary>
+    public const int SpikeTrapSafeRoll = 4;
+
+    public const int SpikeTrapDamage = 3;
+
     private readonly List<Explorer> _explorers;
-    private readonly HashSet<Cell> _keyTokens = [];
+    private readonly Dictionary<Cell, List<ItemKind>> _items = [];
     private readonly List<Cell> _guardians = [];
 
     private int _current;
@@ -55,8 +60,9 @@ public sealed class GameState
 
     public IReadOnlyList<Explorer> Explorers => _explorers;
 
-    /// <summary>Cells holding a Key token, waiting to be picked up.</summary>
-    public IReadOnlySet<Cell> KeyTokens => _keyTokens;
+    /// <summary>What is lying on a tile, waiting to be picked up.</summary>
+    public IReadOnlyList<ItemKind> ItemsOn(Cell cell) =>
+        _items.TryGetValue(cell, out var items) ? items : [];
 
     /// <summary>Where the Ashen Legion currently stands. One cell may hold several.</summary>
     public IReadOnlyList<Cell> Guardians => _guardians;
@@ -76,7 +82,12 @@ public sealed class GameState
     public CommandResult Execute(GameCommand command) => command switch
     {
         Move move => ExecuteMove(move),
+        Run run => ExecuteRun(run),
         Reveal reveal => ExecuteReveal(reveal),
+        Explore explore => ExecuteExplore(explore),
+        Heal heal => ExecuteHeal(heal),
+        PickUpItem pickUp => ExecutePickUp(pickUp),
+        DropItem => ExecuteDrop(),
         Overexert => ExecuteOverexert(),
         EndTurn => ExecuteEndTurn(),
         _ => CommandResult.Reject($"Commande inconnue : {command.GetType().Name}."),
@@ -84,46 +95,139 @@ public sealed class GameState
 
     private CommandResult ExecuteMove(Move move)
     {
-        var explorer = CurrentExplorer;
-
         if (ActionPoints < 1)
         {
             return CommandResult.Reject("Plus de point d'action.");
         }
 
-        var target = explorer.Cell.Neighbour(move.Direction);
-
-        if (!Board.AreConnected(explorer.Cell, target))
+        if (StepRejection(CurrentExplorer, CurrentExplorer.Cell, move.Direction) is { } rejection)
         {
-            return CommandResult.Reject($"{target} n'est pas reliée à {explorer.Cell}.");
+            return CommandResult.Reject(rejection);
+        }
+
+        ActionPoints--;
+        return new CommandResult(true, null, [.. Step(CurrentExplorer, move.Direction)]);
+    }
+
+    private CommandResult ExecuteRun(Run run)
+    {
+        if (RequireActive() is { } down)
+        {
+            return CommandResult.Reject(down);
+        }
+
+        if (run.Steps.Count is 0 or > 3)
+        {
+            return CommandResult.Reject("Courir couvre une à trois tuiles.");
+        }
+
+        if (ActionPoints < 2)
+        {
+            return CommandResult.Reject("Courir coûte deux points d'action.");
+        }
+
+        // The whole route is checked before a single step is taken: a run that cannot
+        // finish should not leave the explorer stranded halfway for the same price.
+        var cell = CurrentExplorer.Cell;
+
+        foreach (var direction in run.Steps)
+        {
+            if (StepRejection(CurrentExplorer, cell, direction) is { } rejection)
+            {
+                return CommandResult.Reject(rejection);
+            }
+
+            cell = cell.Neighbour(direction);
+        }
+
+        ActionPoints -= 2;
+        var events = new List<GameEvent>();
+
+        foreach (var direction in run.Steps)
+        {
+            events.AddRange(Step(CurrentExplorer, direction));
+
+            // Whatever they ran into may have put them on the floor.
+            if (CurrentExplorer.IsDown)
+            {
+                break;
+            }
+        }
+
+        return new CommandResult(true, null, events);
+    }
+
+    /// <summary>Why this step is not allowed, or <c>null</c> if it is.</summary>
+    private string? StepRejection(Explorer explorer, Cell from, Direction direction)
+    {
+        var target = from.Neighbour(direction);
+
+        if (!Board.AreConnected(from, target))
+        {
+            return $"{target} n'est pas reliée à {from}.";
         }
 
         // A bridge takes one explorer's weight at a time.
-        if (Board.TileAt(target)?.Kind == TileKind.Bridge && ExplorersOn(target).Any())
+        if (Board.TileAt(target)?.Kind == TileKind.Bridge
+            && ExplorersOn(target).Any(other => other != explorer))
         {
-            return CommandResult.Reject("Le Pont ne supporte qu'un Explorateur à la fois.");
+            return "Le Pont ne supporte qu'un Explorateur à la fois.";
         }
 
-        var from = explorer.Cell;
-        explorer.Cell = target;
-        ActionPoints--;
+        return null;
+    }
 
-        return CommandResult.Accept(new ExplorerMoved(explorer.Id, from, target));
+    private IEnumerable<GameEvent> Step(Explorer explorer, Direction direction)
+    {
+        var from = explorer.Cell;
+        var target = from.Neighbour(direction);
+
+        explorer.Cell = target;
+        yield return new ExplorerMoved(explorer.Id, from, target);
+
+        foreach (var consequence in OnTileEntered(explorer, target))
+        {
+            yield return consequence;
+        }
+    }
+
+    /// <summary>What the tile does to whoever just walked onto it.</summary>
+    private IEnumerable<GameEvent> OnTileEntered(Explorer explorer, Cell cell)
+    {
+        if (Board.TileAt(cell)?.Kind != TileKind.SpikeTrap)
+        {
+            yield break;
+        }
+
+        var roll = Rng.RollDie();
+        yield return new DieRolled(roll);
+
+        if (roll >= SpikeTrapSafeRoll)
+        {
+            yield break;
+        }
+
+        yield return new TrapSprung(cell, TileKind.SpikeTrap);
+
+        foreach (var wound in Wound(explorer, SpikeTrapDamage))
+        {
+            yield return wound;
+        }
     }
 
     private CommandResult ExecuteReveal(Reveal reveal)
     {
-        var explorer = CurrentExplorer;
-
-        if (explorer.IsDown)
+        if (RequireActive() is { } down)
         {
-            return CommandResult.Reject("À terre, un Explorateur ne peut que ramper.");
+            return CommandResult.Reject(down);
         }
 
         if (ActionPoints < 1)
         {
             return CommandResult.Reject("Plus de point d'action.");
         }
+
+        var explorer = CurrentExplorer;
 
         if (Bag.IsEmpty)
         {
@@ -163,8 +267,8 @@ public sealed class GameState
         switch (tile.Kind)
         {
             case TileKind.Key:
-                _keyTokens.Add(cell);
-                yield return new KeyAppeared(cell);
+                Drop(cell, ItemKind.Key);
+                yield return new ItemAppeared(cell, ItemKind.Key);
                 break;
 
             case TileKind.Guardian:
@@ -173,6 +277,140 @@ public sealed class GameState
                 break;
         }
     }
+
+    private void Drop(Cell cell, ItemKind item)
+    {
+        if (!_items.TryGetValue(cell, out var items))
+        {
+            _items[cell] = items = [];
+        }
+
+        items.Add(item);
+    }
+
+    /// <summary>
+    /// Reveal and step on in one action. If the tile turns out to be unenterable the
+    /// explorer stays put — but the tile is on the table either way.
+    /// </summary>
+    private CommandResult ExecuteExplore(Explore explore)
+    {
+        var revealed = ExecuteReveal(new Reveal(explore.Direction, explore.Rotation));
+
+        if (!revealed.Accepted)
+        {
+            return revealed;
+        }
+
+        var events = new List<GameEvent>(revealed.Events);
+
+        if (StepRejection(CurrentExplorer, CurrentExplorer.Cell, explore.Direction) is null)
+        {
+            events.AddRange(Step(CurrentExplorer, explore.Direction));
+        }
+
+        return new CommandResult(true, null, events);
+    }
+
+    private CommandResult ExecuteHeal(Heal heal)
+    {
+        if (RequireActive() is { } down)
+        {
+            return CommandResult.Reject(down);
+        }
+
+        if (ActionPoints < 1)
+        {
+            return CommandResult.Reject("Plus de point d'action.");
+        }
+
+        if (_explorers.FirstOrDefault(e => e.Id == heal.Target) is not { } target)
+        {
+            return CommandResult.Reject($"Aucun Explorateur {heal.Target}.");
+        }
+
+        if (target.Cell != CurrentExplorer.Cell)
+        {
+            return CommandResult.Reject("On ne soigne que sur sa propre tuile.");
+        }
+
+        if (target.Health == target.MaxHealth)
+        {
+            return CommandResult.Reject($"{target.Name} est déjà au maximum.");
+        }
+
+        var wasDown = target.IsDown;
+        var gained = target.Heal(1);
+        ActionPoints--;
+
+        var events = new List<GameEvent> { new HealthRegained(target.Id, gained, target.Health) };
+
+        if (wasDown)
+        {
+            events.Add(new ExplorerStoodUp(target.Id));
+        }
+
+        return new CommandResult(true, null, events);
+    }
+
+    private CommandResult ExecutePickUp(PickUpItem pickUp)
+    {
+        if (RequireActive() is { } down)
+        {
+            return CommandResult.Reject(down);
+        }
+
+        if (ActionPoints < 1)
+        {
+            return CommandResult.Reject("Plus de point d'action.");
+        }
+
+        var explorer = CurrentExplorer;
+
+        if (explorer.Carried is { } held)
+        {
+            return CommandResult.Reject($"{explorer.Name} porte déjà : {held}.");
+        }
+
+        if (!_items.TryGetValue(explorer.Cell, out var items) || !items.Remove(pickUp.Item))
+        {
+            return CommandResult.Reject($"Rien de tel sur {explorer.Cell}.");
+        }
+
+        explorer.Carried = pickUp.Item;
+        ActionPoints--;
+
+        return CommandResult.Accept(new ItemPickedUp(explorer.Id, pickUp.Item, explorer.Cell));
+    }
+
+    private CommandResult ExecuteDrop()
+    {
+        if (RequireActive() is { } down)
+        {
+            return CommandResult.Reject(down);
+        }
+
+        if (ActionPoints < 1)
+        {
+            return CommandResult.Reject("Plus de point d'action.");
+        }
+
+        var explorer = CurrentExplorer;
+
+        if (explorer.Carried is not { } item)
+        {
+            return CommandResult.Reject($"{explorer.Name} ne porte rien.");
+        }
+
+        explorer.Carried = null;
+        Drop(explorer.Cell, item);
+        ActionPoints--;
+
+        return CommandResult.Accept(new ItemDropped(explorer.Id, item, explorer.Cell));
+    }
+
+    /// <summary>Why a downed explorer cannot do this, or <c>null</c> if they are up.</summary>
+    private string? RequireActive() =>
+        CurrentExplorer.IsDown ? "À terre, un Explorateur ne peut que ramper." : null;
 
     private CommandResult ExecuteOverexert()
     {
