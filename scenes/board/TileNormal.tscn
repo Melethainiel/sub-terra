@@ -1,0 +1,40 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="StandardMaterial3D" path="res://resources/materials/floor_rock.tres" id="floor_rock"]
+[ext_resource type="StandardMaterial3D" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
+
+[sub_resource type="BoxMesh" id="Box_floor"]
+size = Vector3(2.0, 0.15, 2.0)
+
+[sub_resource type="BoxMesh" id="Box_wall_z"]
+size = Vector3(2.0, 1.5, 0.34)
+
+[sub_resource type="BoxMesh" id="Box_wall_x"]
+size = Vector3(0.34, 1.5, 2.0)
+
+[node name="TileNormal" type="Node3D"]
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 0.0000, -0.0750, 0.0000)
+mesh = SubResource("Box_floor")
+material_override = ExtResource("floor_rock")
+
+[node name="Wall_North" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 0.0000, 0.7500, -0.8300)
+mesh = SubResource("Box_wall_z")
+material_override = ExtResource("wall_rock")
+
+[node name="Wall_South" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 0.0000, 0.7500, 0.8300)
+mesh = SubResource("Box_wall_z")
+material_override = ExtResource("wall_rock")
+
+[node name="Wall_East" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 0.8300, 0.7500, 0.0000)
+mesh = SubResource("Box_wall_x")
+material_override = ExtResource("wall_rock")
+
+[node name="Wall_West" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, -0.8300, 0.7500, 0.0000)
+mesh = SubResource("Box_wall_x")
+material_override = ExtResource("wall_rock")

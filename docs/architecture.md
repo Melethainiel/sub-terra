@@ -83,14 +83,21 @@ par type et cette densité d'ouvertures.
 
 ## Le rendu des tuiles
 
-`BoardView` assemble aujourd'hui des primitives : dalle de sol, murs épais de
-roche, et du mobilier par type — la lave est sa propre source de lumière, les
-Gardiens et les Clés portent un sceau émissif, les Ruines un tas d'éboulis
-dispersé depuis les coordonnées de la case pour rester stable d'un rendu à
-l'autre.
+Chaque type de tuile est une scène de `scenes/board/` — `TileLava.tscn`,
+`TileGuardian.tscn`… — et les matériaux sont des `.tres` partagés dans
+`resources/materials/`. Retoucher la roche, c'est éditer un fichier ; retoucher
+une tuile, c'est ouvrir sa scène dans l'éditeur. Rien de visuel ne vit dans le
+code.
 
-Quand des tuiles modélisées arriveront, la couture à remplacer est `AddTile` :
-instancier une scène par `TileKind` au lieu d'assembler des boîtes, et garder le
-reste. Le dispersement décoratif utilise son propre générateur, volontairement
-séparé du `Rng` du moteur : décorer ne doit jamais consommer des jets dont la
-partie dépend.
+Ces scènes sont des **placeholders assumés** : des boîtes et des cylindres. Le
+jour où un `.glb` sort de Blender, il se dépose dans la scène correspondante,
+sans toucher au code.
+
+Chaque scène de tuile porte ses **quatre** murs, nommés `Wall_North` à
+`Wall_West`. `BoardView` masque ceux que la tuile ouvre. Rien ne pivote : la
+rotation choisie à la pose est déjà encodée dans `PlacedTile.OpenSides`, donc
+n'importe quel tracé s'exprime sans tourner le nœud — et une tuile modélisée
+n'aura pas besoin de quatre variantes.
+
+Une scène manquante déclenche un avertissement et un repli sur `TileNormal`
+plutôt qu'un trou dans le temple.
