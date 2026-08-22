@@ -1,0 +1,151 @@
+namespace SubTerra.Core.Board;
+
+/// <summary>
+/// The tiles on the table and how they join up. Purely geometric: whose meeple
+/// stands where, and which markers sit on a tile, belong to the game state.
+/// </summary>
+public sealed class TempleBoard
+{
+    private readonly Dictionary<Cell, PlacedTile> _tiles = [];
+    private readonly HashSet<CellEdge> _demolished = [];
+
+    public TempleBoard(BoardBounds? bounds = null) => Bounds = bounds ?? BoardBounds.Default;
+
+    public BoardBounds Bounds { get; }
+
+    public IReadOnlyDictionary<Cell, PlacedTile> Tiles => _tiles;
+
+    public PlacedTile? TileAt(Cell cell) => _tiles.GetValueOrDefault(cell);
+
+    public bool IsOccupied(Cell cell) => _tiles.ContainsKey(cell);
+
+    /// <summary>
+    /// Places a tile without checking the drawing rules. Used for the fixed setup
+    /// pieces (Entrance, Laterals), which sit outside <see cref="Bounds"/>.
+    /// </summary>
+    public void PlaceFixed(Cell cell, PlacedTile tile)
+    {
+        if (_tiles.ContainsKey(cell))
+        {
+            throw new InvalidOperationException($"Cell {cell} already holds a tile.");
+        }
+
+        _tiles[cell] = tile;
+    }
+
+    /// <summary>
+    /// Whether a revealed tile may legally land on <paramref name="cell"/> in this
+    /// rotation: inside the bounds, on empty ground, and connecting to the tile the
+    /// Explorer is revealing from.
+    /// </summary>
+    public bool CanPlace(Cell cell, PlacedTile tile, Cell from)
+    {
+        if (!Bounds.Contains(cell) || IsOccupied(cell) || !IsOccupied(from))
+        {
+            return false;
+        }
+
+        return Connects(from, cell, tile);
+    }
+
+    public void Place(Cell cell, PlacedTile tile, Cell from)
+    {
+        if (!CanPlace(cell, tile, from))
+        {
+            throw new InvalidOperationException(
+                $"{tile.Kind} cannot be placed on {cell} from {from} at rotation {tile.Rotation}.");
+        }
+
+        _tiles[cell] = tile;
+    }
+
+    /// <summary>Knocks down the wall between two adjacent cells (Sapper's Demolition).</summary>
+    public void Demolish(Cell a, Cell b) => _demolished.Add(new CellEdge(a, b));
+
+    public bool IsDemolished(Cell a, Cell b) => _demolished.Contains(new CellEdge(a, b));
+
+    /// <summary>
+    /// Two tiles are connected when they are adjacent and no wall separates them.
+    /// An open side laid against a neighbour's wall does not connect: the wall counts.
+    /// </summary>
+    public bool AreConnected(Cell a, Cell b)
+    {
+        var tile = TileAt(b);
+        return tile is not null && Connects(a, b, tile);
+    }
+
+    public IEnumerable<Cell> ConnectedNeighbours(Cell cell)
+    {
+        foreach (var direction in DirectionExtensions.All)
+        {
+            var neighbour = cell.Neighbour(direction);
+            if (AreConnected(cell, neighbour))
+            {
+                yield return neighbour;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Length in tiles of the shortest path of connected tiles, or <c>null</c> if
+    /// <paramref name="target"/> cannot be reached. This is the measure the rules use
+    /// for "nearest Guardian tile" and "nearest active Explorer".
+    /// </summary>
+    public int? Distance(Cell origin, Cell target, Func<Cell, bool>? passable = null)
+    {
+        if (origin == target)
+        {
+            return 0;
+        }
+
+        var visited = new HashSet<Cell> { origin };
+        var frontier = new Queue<(Cell Cell, int Steps)>();
+        frontier.Enqueue((origin, 0));
+
+        while (frontier.Count > 0)
+        {
+            var (cell, steps) = frontier.Dequeue();
+            foreach (var neighbour in ConnectedNeighbours(cell))
+            {
+                if (!visited.Add(neighbour))
+                {
+                    continue;
+                }
+
+                if (neighbour == target)
+                {
+                    return steps + 1;
+                }
+
+                if (passable is null || passable(neighbour))
+                {
+                    frontier.Enqueue((neighbour, steps + 1));
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="tile"/>, sitting on <paramref name="cell"/>, would join
+    /// up with whatever occupies <paramref name="from"/>.
+    /// </summary>
+    private bool Connects(Cell from, Cell cell, PlacedTile tile)
+    {
+        if (from.DirectionTo(cell) is not { } direction)
+        {
+            return false;
+        }
+
+        if (IsDemolished(from, cell))
+        {
+            return true;
+        }
+
+        var source = TileAt(from);
+        return source is not null
+            && source.IsOpen(direction)
+            && tile.IsOpen(direction.Opposite());
+    }
+}

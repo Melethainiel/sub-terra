@@ -1,0 +1,21 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>SubTerra</RootNamespace>
+  </PropertyGroup>
+
+  <!-- The Godot SDK globs **/*.cs; the pure-rules library and its tests are
+       separate projects and must not be compiled into the game assembly. -->
+  <ItemGroup>
+    <Compile Remove="src/**/*.cs" />
+    <Compile Remove="tests/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="src/SubTerra.Core/SubTerra.Core.csproj" />
+  </ItemGroup>
+</Project>
