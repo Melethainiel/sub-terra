@@ -30,6 +30,15 @@ public sealed class Explorer(ExplorerId id, string name, int maxHealth, Cell cel
     /// <summary>What they are carrying, if anything. Never more than one thing.</summary>
     public ItemKind? Carried { get; internal set; }
 
+    /// <summary>Out of the temple and safe. They cannot go back in.</summary>
+    public bool HasEscaped { get; internal set; }
+
+    /// <summary>Caught by the lava. Unlike being down, there is no coming back.</summary>
+    public bool IsDead { get; internal set; }
+
+    /// <summary>Whether they can still act at all.</summary>
+    public bool IsPlaying => !HasEscaped && !IsDead;
+
     /// <summary>Returns how many hearts were actually lost.</summary>
     internal int Wound(int amount)
     {

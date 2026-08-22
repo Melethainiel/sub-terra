@@ -37,15 +37,24 @@ public sealed class GameState
     /// <summary>The temple's own turn, at the end of every round.</summary>
     public const int GuardianActivationsPerRound = 2;
 
+    /// <summary>Three keys laid in the sanctuary hall free the Artefact.</summary>
+    public const int KeysToUnlock = 3;
+
     private readonly List<Explorer> _explorers;
     private readonly Dictionary<Cell, List<ItemKind>> _items = [];
     private readonly List<Cell> _guardians = [];
     private readonly HashSet<Cell> _rubble = [];
+    private readonly HashSet<Cell> _flooded = [];
 
     private int _current;
     private bool _bagAnnouncedEmpty;
 
-    public GameState(IEnumerable<Explorer> explorers, TempleBoard board, TileBag bag, Rng rng)
+    public GameState(
+        IEnumerable<Explorer> explorers,
+        TempleBoard board,
+        TileBag bag,
+        Rng rng,
+        Difficulty difficulty = Difficulty.Normal)
     {
         _explorers = [.. explorers];
 
@@ -57,17 +66,22 @@ public sealed class GameState
         Board = board;
         Bag = bag;
         Rng = rng;
+        Difficulty = difficulty;
+        EruptionCountdown = EruptionTrack.StartingCount(difficulty, _explorers.Count);
         ActionPoints = ActionsPerTurn;
     }
 
     /// <summary>A game laid out as the rulebook's setup describes, ready for turn one.</summary>
-    public static GameState NewGame(IEnumerable<(string Name, int MaxHealth)> roster, ulong seed)
+    public static GameState NewGame(
+        IEnumerable<(string Name, int MaxHealth)> roster,
+        ulong seed,
+        Difficulty difficulty = Difficulty.Normal)
     {
         var board = TempleSetup.CreateBoard();
         var explorers = roster.Select((sheet, index) =>
             new Explorer(new ExplorerId(index), sheet.Name, sheet.MaxHealth, TempleSetup.EntranceCrossing));
 
-        return new GameState(explorers, board, TileBag.Temple(), new Rng(seed));
+        return new GameState(explorers, board, TileBag.Temple(), new Rng(seed), difficulty);
     }
 
     public TempleBoard Board { get; }
@@ -88,6 +102,34 @@ public sealed class GameState
     /// <summary>Tiles blocked by fallen rock. Nobody walks in until it is dug out.</summary>
     public IReadOnlySet<Cell> Rubble => _rubble;
 
+    /// <summary>Where the three keys are laid, once the sanctuary has been found.</summary>
+    public Cell? SanctuaryHall { get; private set; }
+
+    /// <summary>The pocket beyond it, where the Artefact waits.</summary>
+    public Cell? SanctuaryVault { get; private set; }
+
+    public int KeysDeposited { get; private set; }
+
+    /// <summary>Once someone lifts the Artefact the temple turns on them.</summary>
+    public bool IsCursed { get; private set; }
+
+    public Difficulty Difficulty { get; }
+
+    /// <summary>Rounds left before the mountain is ready to blow.</summary>
+    public int EruptionCountdown { get; private set; }
+
+    /// <summary>At zero the next flame on a Peril die opens the mountain.</summary>
+    public bool IsVolcanoReady => EruptionCountdown == 0;
+
+    public bool HasErupted { get; private set; }
+
+    /// <summary>Tiles turned to their volcano face. Nothing enters them again.</summary>
+    public IReadOnlySet<Cell> Flooded => _flooded;
+
+    public Outcome Outcome { get; private set; } = Outcome.InProgress;
+
+    public bool IsOver => Outcome != Outcome.InProgress;
+
     public Explorer CurrentExplorer => _explorers[_current];
 
     public int ActionPoints { get; private set; }
@@ -100,7 +142,27 @@ public sealed class GameState
     public IEnumerable<Explorer> ExplorersOn(Cell cell) =>
         _explorers.Where(explorer => explorer.Cell == cell);
 
-    public CommandResult Execute(GameCommand command) => command switch
+    public CommandResult Execute(GameCommand command)
+    {
+        if (IsOver)
+        {
+            return CommandResult.Reject("La partie est terminée.");
+        }
+
+        var result = Dispatch(command);
+
+        if (!result.Accepted)
+        {
+            return result;
+        }
+
+        var events = new List<GameEvent>(result.Events);
+        events.AddRange(CheckForEnding());
+
+        return new CommandResult(true, null, events);
+    }
+
+    private CommandResult Dispatch(GameCommand command) => command switch
     {
         Move move => ExecuteMove(move),
         Run run => ExecuteRun(run),
@@ -118,6 +180,11 @@ public sealed class GameState
 
     private CommandResult ExecuteMove(Move move)
     {
+        if (!CurrentExplorer.IsPlaying)
+        {
+            return CommandResult.Reject("Cet Explorateur a quitté le Temple.");
+        }
+
         if (ActionPoints < 1)
         {
             return CommandResult.Reject("Plus de point d'action.");
@@ -190,6 +257,11 @@ public sealed class GameState
             return $"{target} n'est pas reliée à {from}.";
         }
 
+        if (_flooded.Contains(target))
+        {
+            return $"{target} a été engloutie par la lave.";
+        }
+
         if (_rubble.Contains(target))
         {
             return $"{target} est bloquée par un Éboulis.";
@@ -224,6 +296,14 @@ public sealed class GameState
 
         explorer.Cell = target;
         yield return new ExplorerMoved(explorer.Id, from, target);
+
+        if (target == TempleSetup.EntranceExit)
+        {
+            explorer.HasEscaped = true;
+            ActionPoints = 0;
+            yield return new ExplorerEscaped(explorer.Id, explorer.Carried == ItemKind.Artefact);
+            yield break;
+        }
 
         foreach (var consequence in OnTileEntered(explorer, target))
         {
@@ -324,6 +404,7 @@ public sealed class GameState
         {
             _bagAnnouncedEmpty = true;
             events.Add(new BagEmptied());
+            events.AddRange(PlaceSanctuary());
         }
 
         return new CommandResult(true, null, events);
@@ -456,7 +537,16 @@ public sealed class GameState
         explorer.Carried = pickUp.Item;
         ActionPoints--;
 
-        return CommandResult.Accept(new ItemPickedUp(explorer.Id, pickUp.Item, explorer.Cell));
+        var events = new List<GameEvent> { new ItemPickedUp(explorer.Id, pickUp.Item, explorer.Cell) };
+
+        // Lifting the Artefact wakes the mountain: two peril dice a turn from here on.
+        if (pickUp.Item == ItemKind.Artefact && !IsCursed)
+        {
+            IsCursed = true;
+            events.Add(new CurseFell());
+        }
+
+        return new CommandResult(true, null, events);
     }
 
     private CommandResult ExecuteDrop()
@@ -479,8 +569,24 @@ public sealed class GameState
         }
 
         explorer.Carried = null;
-        Drop(explorer.Cell, item);
         ActionPoints--;
+
+        // Laying a key in the sanctuary hall is not dropping it — it is turning a lock.
+        if (item == ItemKind.Key && explorer.Cell == SanctuaryHall)
+        {
+            KeysDeposited++;
+            var turned = new List<GameEvent> { new KeyDeposited(explorer.Cell, KeysDeposited) };
+
+            if (KeysDeposited == KeysToUnlock && SanctuaryVault is { } vault)
+            {
+                Drop(vault, ItemKind.Artefact);
+                turned.Add(new ArtefactRevealed(vault));
+            }
+
+            return new CommandResult(true, null, turned);
+        }
+
+        Drop(explorer.Cell, item);
 
         return CommandResult.Accept(new ItemDropped(explorer.Id, item, explorer.Cell));
     }
@@ -546,9 +652,221 @@ public sealed class GameState
         return CommandResult.Accept(new RubbleCleared(dig.Cell));
     }
 
-    /// <summary>Why a downed explorer cannot do this, or <c>null</c> if they are up.</summary>
-    private string? RequireActive() =>
-        CurrentExplorer.IsDown ? "À terre, un Explorateur ne peut que ramper." : null;
+    /// <summary>
+    /// With the bag empty there is enough of the temple on the table to know where the
+    /// sanctuary lies: as far from the Entrance as it can be reached. Its hall takes
+    /// the three keys, and the vault beyond it holds the Artefact.
+    /// </summary>
+    /// <remarks>
+    /// The rules let the expedition leader choose between equal spots; the deepest
+    /// row and then the lowest column stand in for that, so a game replays the same.
+    /// </remarks>
+    private IEnumerable<GameEvent> PlaceSanctuary()
+    {
+        if (SanctuaryHall is not null)
+        {
+            yield break;
+        }
+
+        // Deepest first: the sanctuary belongs as far from the Entrance as the temple
+        // reaches. The rules let the expedition leader pick between equal spots; the
+        // deepest vault, then the deepest hall, then the lowest column stand in for
+        // that, so a game replays the same.
+        var candidates = Board.OpenExits()
+            .Select(exit => (Exit: exit, Hall: exit.Target, Vault: exit.Target.Neighbour(exit.Direction)))
+            .OrderByDescending(spot => spot.Vault.Row)
+            .ThenByDescending(spot => spot.Hall.Row)
+            .ThenBy(spot => spot.Hall.Column);
+
+        foreach (var (exit, hall, vault) in candidates)
+        {
+            if (Board.IsOccupied(vault) || !Board.Bounds.Contains(vault))
+            {
+                continue;
+            }
+
+            var back = exit.Direction.Opposite();
+
+            var hallLayout = TileShapeExtensions.Match(SidesFor(exit.Direction) | SidesFor(back))!.Value;
+            var vaultLayout = TileShapeExtensions.Match(SidesFor(back))!.Value;
+
+            var hallTile = new PlacedTile(
+                new TileDefinition("Sanctuary-Hall", TileKind.Sanctuary, hallLayout.Shape),
+                hallLayout.Rotation);
+
+            if (!Board.CanPlace(hall, hallTile, exit.From))
+            {
+                continue;
+            }
+
+            Board.Place(hall, hallTile, exit.From);
+            Board.PlaceFixed(vault, new PlacedTile(
+                new TileDefinition("Sanctuary-Vault", TileKind.Sanctuary, vaultLayout.Shape),
+                vaultLayout.Rotation));
+
+            SanctuaryHall = hall;
+            SanctuaryVault = vault;
+
+            yield return new SanctuaryFound(hall, vault);
+            yield break;
+        }
+    }
+
+    private static Sides SidesFor(Direction direction) => (Sides)(1 << (int)direction);
+
+    /// <summary>
+    /// The expedition is over once nobody left in the temple can still act: everyone
+    /// has escaped, died, or is lying on the floor.
+    /// </summary>
+    private IEnumerable<GameEvent> CheckForEnding()
+    {
+        if (IsOver || _explorers.Any(explorer => explorer.IsPlaying && !explorer.IsDown))
+        {
+            yield break;
+        }
+
+        var escapedWithArtefact = _explorers.Any(
+            explorer => explorer.HasEscaped && explorer.Carried == ItemKind.Artefact);
+
+        if (!escapedWithArtefact)
+        {
+            Outcome = Outcome.ForgottenForever;
+            yield return new GameEnded(Outcome);
+            yield break;
+        }
+
+        // Only those who walked back out count as survivors.
+        var lost = _explorers.Count(explorer => !explorer.HasEscaped);
+
+        Outcome = lost switch
+        {
+            0 => Outcome.Legendary,
+            1 => Outcome.Gold,
+            2 => Outcome.Silver,
+            _ => Outcome.Bronze,
+        };
+
+        yield return new GameEnded(Outcome);
+    }
+
+    /// <summary>
+    /// The eruption marker moves one step. Once it is spent the mountain only waits
+    /// for a flame; afterwards each step is another surge of lava through the temple.
+    /// </summary>
+    private IEnumerable<GameEvent> AdvanceEruption()
+    {
+        if (HasErupted)
+        {
+            foreach (var surge in SpreadLava())
+            {
+                yield return surge;
+            }
+
+            yield break;
+        }
+
+        if (EruptionCountdown == 0)
+        {
+            yield break;
+        }
+
+        EruptionCountdown--;
+        yield return new EruptionAdvanced(EruptionCountdown);
+
+        if (EruptionCountdown == 0)
+        {
+            yield return new VolcanoReady();
+        }
+    }
+
+    /// <summary>
+    /// The flame that comes after the countdown ends. If the Artefact is still in the
+    /// sanctuary — or was never found — there is nothing left to save.
+    /// </summary>
+    private IEnumerable<GameEvent> Erupt()
+    {
+        HasErupted = true;
+        yield return new VolcanoErupted();
+
+        if (!ArtefactHasLeftTheSanctuary)
+        {
+            Outcome = Outcome.ForgottenForever;
+            yield return new GameEnded(Outcome);
+            yield break;
+        }
+
+        // The sanctuary goes first; the lava works outwards from there.
+        var source = new[] { SanctuaryVault, SanctuaryHall }
+            .OfType<Cell>()
+            .Where(cell => !_flooded.Contains(cell))
+            .ToList();
+
+        foreach (var flooded in Flood(source))
+        {
+            yield return flooded;
+        }
+    }
+
+    /// <summary>
+    /// Whether someone is carrying the Artefact and has got it clear of the sanctuary.
+    /// </summary>
+    private bool ArtefactHasLeftTheSanctuary =>
+        SanctuaryHall is not null
+        && _explorers.Any(explorer => explorer.Carried == ItemKind.Artefact
+            && explorer.Cell != SanctuaryHall
+            && explorer.Cell != SanctuaryVault);
+
+    /// <summary>Every tile touching the lava goes under, keeping the connections.</summary>
+    private IEnumerable<GameEvent> SpreadLava() =>
+        Flood(_flooded
+            .SelectMany(Board.ConnectedNeighbours)
+            .Where(cell => !_flooded.Contains(cell))
+            .Distinct()
+            .ToList());
+
+    private IEnumerable<GameEvent> Flood(IReadOnlyList<Cell> cells)
+    {
+        if (cells.Count == 0)
+        {
+            yield break;
+        }
+
+        foreach (var cell in cells)
+        {
+            _flooded.Add(cell);
+            _rubble.Remove(cell);
+        }
+
+        yield return new TilesFlooded(cells);
+
+        // Everything standing there is gone: explorers dead, guardians burned away.
+        foreach (var cell in cells)
+        {
+            foreach (var caught in ExplorersOn(cell).Where(explorer => explorer.IsPlaying).ToList())
+            {
+                caught.IsDead = true;
+                caught.Carried = null;
+                yield return new ExplorerKilled(caught.Id, cell);
+            }
+
+            for (var index = _guardians.Count - 1; index >= 0; index--)
+            {
+                if (_guardians[index] == cell)
+                {
+                    _guardians.RemoveAt(index);
+                    yield return new GuardianEliminated(cell);
+                }
+            }
+        }
+    }
+
+    /// <summary>Why the current explorer cannot do this, or <c>null</c> if they can.</summary>
+    private string? RequireActive() => CurrentExplorer switch
+    {
+        { IsPlaying: false } => "Cet Explorateur a quitté le Temple.",
+        { IsDown: true } => "À terre, un Explorateur ne peut que ramper.",
+        _ => null,
+    };
 
     private CommandResult ExecuteOverexert()
     {
@@ -629,6 +947,21 @@ public sealed class GameState
 
     private IEnumerable<GameEvent> Burn()
     {
+        if (IsVolcanoReady && !HasErupted)
+        {
+            foreach (var eruption in Erupt())
+            {
+                yield return eruption;
+            }
+        }
+        else if (HasErupted)
+        {
+            foreach (var surge in SpreadLava())
+            {
+                yield return surge;
+            }
+        }
+
         var burning = _explorers
             .Where(explorer => Board.TileAt(explorer.Cell)?.Kind == TileKind.Lava)
             .ToList();
@@ -803,7 +1136,13 @@ public sealed class GameState
     private CommandResult ExecuteEndTurn()
     {
         var events = new List<GameEvent>();
-        events.AddRange(ResolvePeril(CurrentExplorer));
+
+        // Under the curse the temple answers twice for every turn taken.
+        for (var roll = 0; roll < (IsCursed ? 2 : 1); roll++)
+        {
+            events.AddRange(ResolvePeril(CurrentExplorer));
+        }
+
         events.Add(new TurnEnded(CurrentExplorer.Id));
 
         _current++;
@@ -819,11 +1158,24 @@ public sealed class GameState
             {
                 events.AddRange(ActivateGuardians());
             }
+
+            // Two steps under the curse: carrying the Artefact hurries the mountain.
+            for (var step = 0; step < (IsCursed ? 2 : 1); step++)
+            {
+                events.AddRange(AdvanceEruption());
+            }
         }
 
         // A downed explorer can only crawl: one tile, and nothing else.
         HasOverexerted = false;
-        ActionPoints = CurrentExplorer.IsDown ? 1 : ActionsPerTurn;
+
+        // Those who got out, and those the mountain kept, have no actions to take.
+        ActionPoints = CurrentExplorer switch
+        {
+            { IsPlaying: false } => 0,
+            { IsDown: true } => 1,
+            _ => ActionsPerTurn,
+        };
 
         events.Add(new TurnBegan(CurrentExplorer.Id, ActionPoints));
 

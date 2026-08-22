@@ -171,7 +171,8 @@ public class GameStateTests
     [Fact]
     public void RunningOutOfHeartsPutsAnExplorerDownAndEndsTheirTurn()
     {
-        var game = Game(("Fragile", 1));
+        // A companion still standing, so this tests the turn ending and not the game.
+        var game = Game(("Fragile", 1), ("Prêtre", 5));
 
         var result = game.Execute(new Overexert());
 
@@ -183,10 +184,12 @@ public class GameStateTests
     [Fact]
     public void ADownedExplorerGetsOneActionAndCanOnlyCrawl()
     {
-        var game = Game(("Fragile", 1));
+        var game = Game(("Fragile", 1), ("Prêtre", 5));
         game.Execute(new Overexert());
         game.Execute(new EndTurn());
+        game.Execute(new EndTurn());
 
+        Assert.True(game.CurrentExplorer.IsDown);
         Assert.Equal(1, game.ActionPoints);
         Assert.False(game.Execute(new Overexert()).Accepted);
         Assert.False(game.Execute(new Reveal(Direction.South, 0)).Accepted);

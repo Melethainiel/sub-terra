@@ -64,8 +64,13 @@ plutôt que de les enterrer.
   par l'ordre du plateau (nord, est, sud, ouest), ce qui est déterministe. À
   reprendre le jour où on saura poser la question au Chef.
 
+Le Sanctuaire se pose tout seul quand le sac se vide, aussi loin de l'Entrée que
+le temple s'étend : son couloir reçoit les trois Clés, son cul-de-sac libère
+l'Artefact. Le prendre déclenche la malédiction — deux dés de Péril par tour, et
+l'Éruption qui avance de deux cases par manche. Sortir par l'Entrée avec
+l'Artefact gagne la partie.
+
 ## Encore à définir
 
 - La tuile Journal (réservée à l'Aristocrate).
-- La piste d'Éruption, le retournement du plateau Volcan et la coulée de lave.
-- Le dépôt des Clés au Sanctuaire, l'Artefact, la malédiction et la victoire.
+- Les dix Explorateurs et leurs vingt capacités : aucune n'est implémentée.

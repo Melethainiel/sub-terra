@@ -59,3 +59,29 @@ public sealed record ExplorerWentDown(ExplorerId Explorer) : GameEvent;
 
 /// <summary>The bag is empty: the Sanctuary can be placed.</summary>
 public sealed record BagEmptied : GameEvent;
+
+public sealed record SanctuaryFound(Cell Hall, Cell Vault) : GameEvent;
+
+public sealed record KeyDeposited(Cell Cell, int Total) : GameEvent;
+
+/// <summary>The third key turned: the Artefact sits on its pedestal.</summary>
+public sealed record ArtefactRevealed(Cell Cell) : GameEvent;
+
+/// <summary>Someone lifted the Artefact. The mountain noticed.</summary>
+public sealed record CurseFell : GameEvent;
+
+public sealed record ExplorerEscaped(ExplorerId Explorer, bool WithArtefact) : GameEvent;
+
+public sealed record GameEnded(Outcome Outcome) : GameEvent;
+
+public sealed record EruptionAdvanced(int Remaining) : GameEvent;
+
+/// <summary>The marker reached zero. The next flame face blows the mountain open.</summary>
+public sealed record VolcanoReady : GameEvent;
+
+public sealed record VolcanoErupted : GameEvent;
+
+/// <summary>Tiles turned over to their volcano face. Nothing walks there again.</summary>
+public sealed record TilesFlooded(IReadOnlyList<Cell> Cells) : GameEvent;
+
+public sealed record ExplorerKilled(ExplorerId Explorer, Cell Cell) : GameEvent;

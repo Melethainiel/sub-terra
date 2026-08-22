@@ -42,6 +42,29 @@ pour deviner ce qui a changé : elle rejoue les événements en animations.
 coordonnées sont des `Cell(int Column, int Row)` ; la conversion vers l'espace
 3D appartient à la couche de présentation.
 
+## Le moteur de règles, où il en est
+
+`GameState` est le seul point de passage : une commande entre, des événements
+sortent. Une partie se résume à sa graine et à sa liste de commandes, ce qui
+rend le rejeu, la sauvegarde et l'hôte autoritaire identiques par construction.
+
+Sont joués : le tour de joueur et ses points d'action, les huit actions de base,
+les six faces du dé de Péril, les Gardiens et leurs activations, les éboulis, le
+Sanctuaire, l'Artefact, la malédiction, la piste d'Éruption, la coulée de lave
+et les conditions de fin.
+
+Ne sont pas joués : les dix Explorateurs et leurs capacités, la tuile Journal.
+
+Deux écarts assumés, notés ici pour ne pas les oublier :
+
+- Le livret confie de nombreux arbitrages au **Chef d'Expédition** — quelle
+  cible un Gardien frappe, où va le Sanctuaire quand plusieurs places
+  conviennent. Le moteur tranche par l'ordre du plateau, ce qui est
+  déterministe mais n'est pas la règle. Ces choix doivent devenir des commandes
+  adressées à un joueur désigné.
+- Le nombre d'exemplaires des tuiles et leurs tracés viennent de
+  `docs/tuiles.md`, dicté, et non du livret.
+
 ## Le réseau
 
 L'hôte détient le seul `GameState` faisant foi. Les clients envoient des
