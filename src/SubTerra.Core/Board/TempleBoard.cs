@@ -59,6 +59,34 @@ public sealed class TempleBoard
         _tiles[cell] = tile;
     }
 
+    /// <summary>
+    /// Every way out of the placed tiles that has nothing on the far side yet — an
+    /// open side, or a demolished wall, giving onto empty ground inside the bounds.
+    /// Revealing means picking one of these.
+    /// </summary>
+    public IEnumerable<TempleExit> OpenExits()
+    {
+        // Ordered rather than left in dictionary order: anything that picks among the
+        // exits must do so reproducibly for a game to replay from its seed.
+        foreach (var (cell, tile) in _tiles.OrderBy(entry => entry.Key.Row).ThenBy(entry => entry.Key.Column))
+        {
+            foreach (var direction in DirectionExtensions.All)
+            {
+                var target = cell.Neighbour(direction);
+
+                if (!Bounds.Contains(target) || IsOccupied(target))
+                {
+                    continue;
+                }
+
+                if (tile.IsOpen(direction) || IsDemolished(cell, target))
+                {
+                    yield return new TempleExit(cell, direction);
+                }
+            }
+        }
+    }
+
     /// <summary>Knocks down the wall between two adjacent cells (Sapper's Demolition).</summary>
     public void Demolish(Cell a, Cell b) => _demolished.Add(new CellEdge(a, b));
 
