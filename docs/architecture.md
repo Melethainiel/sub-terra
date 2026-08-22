@@ -70,3 +70,27 @@ scripts/Presentation/  lecture des GameEvent → animations
 resources/       .tres de données (fiches, catalogue de tuiles)
 assets/          modèles, textures, sons
 ```
+
+## Les tuiles
+
+Les effectifs par type viennent du livret ; **les tracés de couloirs sont les
+nôtres**. Le livret ne les imprime pas — c'est de l'illustration — et ce portage
+est une version 3D, pas un fac-similé. `TileShape` en définit quatre : croisement,
+T, couloir, coude. `TileCatalog` les répartit sur les 30 tuiles avec un peu moins
+de trois ouvertures par tuile en moyenne, de sorte que le temple se lise comme un
+labyrinthe plutôt que comme une esplanade. Des tests verrouillent les effectifs
+par type et cette densité d'ouvertures.
+
+## Le rendu des tuiles
+
+`BoardView` assemble aujourd'hui des primitives : dalle de sol, murs épais de
+roche, et du mobilier par type — la lave est sa propre source de lumière, les
+Gardiens et les Clés portent un sceau émissif, les Ruines un tas d'éboulis
+dispersé depuis les coordonnées de la case pour rester stable d'un rendu à
+l'autre.
+
+Quand des tuiles modélisées arriveront, la couture à remplacer est `AddTile` :
+instancier une scène par `TileKind` au lieu d'assembler des boîtes, et garder le
+reste. Le dispersement décoratif utilise son propre générateur, volontairement
+séparé du `Rng` du moteur : décorer ne doit jamais consommer des jets dont la
+partie dépend.

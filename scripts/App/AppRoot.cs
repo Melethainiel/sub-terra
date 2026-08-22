@@ -21,7 +21,7 @@ public partial class AppRoot : Node3D
     public int Seed { get; set; } = 42;
 
     [Export(PropertyHint.Range, "0,30,1")]
-    public int PreviewTileCount { get; set; } = 14;
+    public int PreviewTileCount { get; set; } = 22;
 
     public override void _Ready()
     {
@@ -55,18 +55,40 @@ public partial class AppRoot : Node3D
             }
 
             var exit = exits[rng.Next(exits.Count)];
-            var tile = new PlacedTile(bag.Draw(rng), rng.Next(4));
+            var drawn = bag.Draw(rng);
 
-            if (board.CanPlace(exit.Target, tile, exit.From))
+            // A player turns the tile in their hand until it fits. Only when no
+            // orientation connects does the "totally blocked" rule send it back.
+            if (FittingRotation(board, exit, drawn, rng) is { } tile)
             {
                 board.Place(exit.Target, tile, exit.From);
             }
             else
             {
-                // Rule of the "totally blocked" temple: back in the bag, draw again.
-                bag.Return(tile.Definition);
+                bag.Return(drawn);
             }
         }
+    }
+
+    /// <summary>
+    /// The first orientation, starting from a random one, that connects the drawn tile
+    /// to the exit it is being revealed from.
+    /// </summary>
+    private static PlacedTile? FittingRotation(TempleBoard board, TempleExit exit, TileDefinition drawn, Rng rng)
+    {
+        var first = rng.Next(4);
+
+        for (var turn = 0; turn < 4; turn++)
+        {
+            var tile = new PlacedTile(drawn, (first + turn) % 4);
+
+            if (board.CanPlace(exit.Target, tile, exit.From))
+            {
+                return tile;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>Points the camera down at the middle of what is currently on the table.</summary>
@@ -92,7 +114,7 @@ public partial class AppRoot : Node3D
 
         // High and slightly to the south, backed off far enough to hold the whole
         // temple in frame, so the board reads as sinking away from us.
-        var distance = Mathf.Max(extent * 0.9f, 8f);
+        var distance = Mathf.Max(extent * 1.25f, 12f);
         camera.LookAtFromPosition(centre + new Vector3(0f, distance, distance * 0.6f), centre, Vector3.Up);
     }
 }

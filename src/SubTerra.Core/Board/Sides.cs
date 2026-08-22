@@ -19,6 +19,10 @@ public static class SidesExtensions
     public static bool IsOpen(this Sides sides, Direction direction) =>
         (sides & (Sides)(1 << (int)direction)) != 0;
 
+    /// <summary>How many ways there are in and out of a tile.</summary>
+    public static int OpeningCount(this Sides sides) =>
+        System.Numerics.BitOperations.PopCount((uint)(sides & Sides.All));
+
     /// <summary>Rotates the open sides clockwise by <paramref name="quarterTurns"/>.</summary>
     public static Sides Rotate(this Sides sides, int quarterTurns)
     {

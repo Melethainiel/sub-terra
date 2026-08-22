@@ -119,12 +119,15 @@ Victoire si au moins un Explorateur s'est échappé avec l'Artefact :
   Si aucune tuile du sac ne résout la situation, défausser le sac et placer le
   Sanctuaire.
 
-**[?] Géométrie exacte non couverte par le livret.** Le livret ne décrit pas
-l'agencement des murs de chacune des 30 tuiles (c'est de l'illustration), ni la
-largeur exacte de l'emprise des Latérales. Le schéma p. 8 se lit comme une
-grille de 7 colonnes jouables, l'Entrée occupant la colonne centrale sur la
-rangée des Latérales. Décision nécessaire : relever les vraies tuiles, ou
-définir notre propre jeu de configurations de murs.
+**Géométrie des tuiles — dessinée par nous.** Le livret ne décrit pas
+l'agencement des murs de chacune des 30 tuiles : c'est de l'illustration, pas de
+la règle. Ce portage étant une version 3D et non une reproduction, les tracés
+sont les nôtres (`TileShape` : croisement, T, couloir, coude), répartis sur les
+types dans `TileCatalog`. Les effectifs par type, eux, viennent du livret.
+
+**[?]** La largeur exacte de l'emprise des Latérales reste à confirmer. Le
+schéma p. 8 se lit comme une grille de 7 colonnes jouables, l'Entrée occupant la
+colonne centrale sur la rangée des Latérales.
 
 ### 6.2 Types de tuiles Temple
 
@@ -334,12 +337,10 @@ Domaines de prédilection : **Éclaireur** 👁, **Connecteur** ✕, **Défenseu
 
 ## 13. Points à trancher avant implémentation
 
-1. **Configuration des murs des 30 tuiles** — absente du livret. Relever le
-   matériel réel, ou concevoir notre propre distribution.
-2. **Emprise exacte de la zone jouable** — largeur en colonnes et profondeur
+1. **Emprise exacte de la zone jouable** — largeur en colonnes et profondeur
    maximale, à confirmer sur le matériel.
-3. **Chiffres des tuiles Ruines** — le livret parle du « chiffre » de chaque
+2. **Chiffres des tuiles Ruines** — le livret parle du « chiffre » de chaque
    tuile Ruines ; 6 tuiles, vraisemblablement 1 à 6, à confirmer.
-4. **Orientation « colonne »** pour le placement du Sanctuaire (cf. §10).
-5. **Face retournée du plateau Volcan** — le livret la montre sans détailler ses
+3. **Orientation « colonne »** pour le placement du Sanctuaire (cf. §10).
+4. **Face retournée du plateau Volcan** — le livret la montre sans détailler ses
    pictogrammes.
