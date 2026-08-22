@@ -6,8 +6,14 @@ namespace SubTerra.Core.Tests;
 
 public class TempleExitTests
 {
-    private static PlacedTile Tile(Sides openSides) =>
-        new(new TileDefinition("test", TileKind.Normal, openSides));
+    /// <summary>A printed tile laid out so that exactly these sides are open.</summary>
+    private static PlacedTile Tile(Sides openSides)
+    {
+        var layout = TileShapeExtensions.Match(openSides)
+            ?? throw new ArgumentException($"No tile shape lays out {openSides}.", nameof(openSides));
+
+        return new PlacedTile(new TileDefinition("test", TileKind.Normal, layout.Shape), layout.Rotation);
+    }
 
     [Fact]
     public void AnExitPointsAtTheCellBeyondIt()

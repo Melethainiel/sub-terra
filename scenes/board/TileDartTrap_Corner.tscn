@@ -1,0 +1,67 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="StandardMaterial3D" path="res://resources/materials/floor_rock.tres" id="floor_rock"]
+[ext_resource type="StandardMaterial3D" path="res://resources/materials/sigil_dart.tres" id="sigil_dart"]
+[ext_resource type="StandardMaterial3D" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
+
+[sub_resource type="BoxMesh" id="Box_floor"]
+size = Vector3(2.0, 0.15, 2.0)
+
+[sub_resource type="BoxMesh" id="Box_corner"]
+size = Vector3(0.5, 1.5, 0.5)
+
+[sub_resource type="BoxMesh" id="Box_South"]
+size = Vector3(1.0, 1.5, 0.5)
+
+[sub_resource type="BoxMesh" id="Box_West"]
+size = Vector3(0.5, 1.5, 1.0)
+
+[sub_resource type="CylinderMesh" id="Cyl_sigil"]
+top_radius = 0.2
+bottom_radius = 0.2
+height = 0.04
+radial_segments = 24
+
+[node name="TileDartTrapCorner" type="Node3D"]
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.075, 0.0)
+mesh = SubResource("Box_floor")
+material_override = ExtResource("floor_rock")
+
+[node name="Rock" type="Node3D" parent="."]
+
+[node name="Corner_NW" type="MeshInstance3D" parent="Rock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, -0.75)
+mesh = SubResource("Box_corner")
+material_override = ExtResource("wall_rock")
+
+[node name="Corner_NE" type="MeshInstance3D" parent="Rock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0.75, -0.75)
+mesh = SubResource("Box_corner")
+material_override = ExtResource("wall_rock")
+
+[node name="Corner_SE" type="MeshInstance3D" parent="Rock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0.75, 0.75)
+mesh = SubResource("Box_corner")
+material_override = ExtResource("wall_rock")
+
+[node name="Corner_SW" type="MeshInstance3D" parent="Rock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, 0.75)
+mesh = SubResource("Box_corner")
+material_override = ExtResource("wall_rock")
+
+[node name="Wall_South" type="MeshInstance3D" parent="Rock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.75, 0.75)
+mesh = SubResource("Box_South")
+material_override = ExtResource("wall_rock")
+
+[node name="Wall_West" type="MeshInstance3D" parent="Rock"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, 0.0)
+mesh = SubResource("Box_West")
+material_override = ExtResource("wall_rock")
+
+[node name="DartMechanism" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.02, 0.0)
+mesh = SubResource("Cyl_sigil")
+material_override = ExtResource("sigil_dart")

@@ -5,9 +5,46 @@ namespace SubTerra.Core.Tests;
 
 public class TileCatalogTests
 {
-    [Fact]
-    public void TheBagHoldsThirtyTempleTiles()
+    /// <summary>
+    /// The tile set dictated for this port, in docs/tuiles.md. Locked here because it
+    /// is a decision, not a deduction: nothing in the rulebook or the code implies it.
+    /// </summary>
+    public static readonly TheoryData<TileKind, TileShape, int> DictatedComposition = new()
     {
+        { TileKind.Normal, TileShape.Junction, 3 },
+        { TileKind.Bridge, TileShape.Corridor, 2 },
+        { TileKind.Key, TileShape.DeadEnd, 3 },
+        { TileKind.DartTrap, TileShape.Corner, 4 },
+        { TileKind.Lava, TileShape.Junction, 2 },
+        { TileKind.Lava, TileShape.Crossroads, 3 },
+        { TileKind.SpikeTrap, TileShape.Crossroads, 3 },
+        { TileKind.Ruins, TileShape.Junction, 3 },
+        { TileKind.Ruins, TileShape.Crossroads, 3 },
+        { TileKind.Guardian, TileShape.DeadEnd, 2 },
+        { TileKind.Guardian, TileShape.Corner, 2 },
+    };
+
+    [Theory]
+    [MemberData(nameof(DictatedComposition))]
+    public void TheBagHoldsTheDictatedCopiesOfEachTile(TileKind kind, TileShape shape, int expected)
+    {
+        var copies = TileCatalog.CreateBag()
+            .Count(tile => tile.Kind == kind && tile.Shape == shape);
+
+        Assert.Equal(expected, copies);
+    }
+
+    [Fact]
+    public void TheBagHoldsNothingBeyondTheDictatedTiles()
+    {
+        var dictated = DictatedComposition
+            .Select(row => ((TileKind)row[0], (TileShape)row[1]))
+            .ToHashSet();
+
+        Assert.All(
+            TileCatalog.CreateBag(),
+            tile => Assert.Contains((tile.Kind, tile.Shape), dictated));
+
         Assert.Equal(30, TileCatalog.CreateBag().Count);
     }
 
@@ -40,57 +77,27 @@ public class TileCatalogTests
     }
 
     [Fact]
-    public void EveryTileHasAtLeastTwoWaysOut()
-    {
-        // A dead end drawn late could seal the Temple; the rulebook has a rule for it,
-        // but our own tile designs need not court it.
-        Assert.All(
-            TileCatalog.CreateBag().Concat(TileCatalog.CreateJournalTiles()),
-            tile => Assert.True(
-                tile.OpenSides.OpeningCount() >= 2,
-                $"{tile.Id} has fewer than two open sides."));
-    }
-
-    [Fact]
-    public void CrossroadsStayScarceSoTheTempleReadsAsAMaze()
-    {
-        var bag = TileCatalog.CreateBag();
-        var crossroads = bag.Count(tile => tile.OpenSides == Sides.All);
-        var openings = bag.Sum(tile => tile.OpenSides.OpeningCount());
-
-        Assert.InRange(crossroads, 1, 8);
-        Assert.InRange(openings / (double)bag.Count, 2.0, 3.0);
-    }
-
-    [Fact]
-    public void EveryKindKeepsItsRulebookCount()
-    {
-        var counts = TileCatalog.CreateBag()
-            .GroupBy(tile => tile.Kind)
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        Assert.Equal(
-            new Dictionary<TileKind, int>
-            {
-                [TileKind.Normal] = 3,
-                [TileKind.Bridge] = 2,
-                [TileKind.Key] = 3,
-                [TileKind.Lava] = 5,
-                [TileKind.SpikeTrap] = 3,
-                [TileKind.DartTrap] = 4,
-                [TileKind.Ruins] = 6,
-                [TileKind.Guardian] = 4,
-            },
-            counts);
-    }
-
-    [Fact]
     public void TileIdsAreUnique()
     {
-        var ids = TileCatalog.CreateBag().Concat(TileCatalog.CreateJournalTiles())
+        var ids = TileCatalog.CreateBag()
+            .Concat(TileCatalog.CreateJournalTiles())
             .Select(tile => tile.Id)
             .ToList();
 
         Assert.Equal(ids.Count, ids.Distinct().Count());
+    }
+
+    [Fact]
+    public void KeysAndGuardiansSitAtTheEndOfADeadEnd()
+    {
+        // Deliberate: reaching a Key or waking a Guardian means walking into a
+        // pocket with no way on. Nothing else in the bag is a dead end.
+        var deadEnds = TileCatalog.CreateBag()
+            .Where(tile => tile.OpenSides.OpeningCount() == 1)
+            .Select(tile => tile.Kind)
+            .Distinct()
+            .Order();
+
+        Assert.Equal([TileKind.Key, TileKind.Guardian], deadEnds);
     }
 }

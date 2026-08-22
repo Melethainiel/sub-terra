@@ -5,8 +5,14 @@ namespace SubTerra.Core.Tests;
 
 public class TempleBoardTests
 {
-    private static PlacedTile Tile(Sides openSides, TileKind kind = TileKind.Normal) =>
-        new(new TileDefinition("test", kind, openSides));
+    /// <summary>A printed tile laid out so that exactly these sides are open.</summary>
+    private static PlacedTile Tile(Sides openSides, TileKind kind = TileKind.Normal)
+    {
+        var layout = TileShapeExtensions.Match(openSides)
+            ?? throw new ArgumentException($"No tile shape lays out {openSides}.", nameof(openSides));
+
+        return new PlacedTile(new TileDefinition("test", kind, layout.Shape), layout.Rotation);
+    }
 
     private static TempleBoard BoardWith(Cell cell, Sides openSides)
     {
@@ -56,10 +62,12 @@ public class TempleBoardTests
     {
         var origin = new Cell(3, 1);
         var board = BoardWith(origin, Sides.All);
-        var deadEndFacingSouth = new TileDefinition("dead-end", TileKind.Normal, Sides.South);
+        var deadEnd = new TileDefinition("dead-end", TileKind.Normal, TileShape.DeadEnd);
 
-        Assert.False(board.CanPlace(new Cell(3, 2), new PlacedTile(deadEndFacingSouth), origin));
-        Assert.True(board.CanPlace(new Cell(3, 2), new PlacedTile(deadEndFacingSouth, Rotation: 2), origin));
+        // Its single opening faces north when unturned, away from the tile it is
+        // being revealed from; a half turn brings it round to meet it.
+        Assert.False(board.CanPlace(new Cell(3, 2), new PlacedTile(deadEnd, Rotation: 2), origin));
+        Assert.True(board.CanPlace(new Cell(3, 2), new PlacedTile(deadEnd), origin));
     }
 
     [Fact]

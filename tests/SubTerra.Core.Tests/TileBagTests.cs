@@ -13,7 +13,7 @@ public class TileBagTests
     }
 
     [Fact]
-    public void ANewBagHoldsTheThirtyTempleTiles()
+    public void ANewBagHoldsEveryDictatedTile()
     {
         Assert.Equal(30, TileBag.Temple().Count);
         Assert.False(TileBag.Temple().IsEmpty);
@@ -80,7 +80,7 @@ public class TileBagTests
         // Guards the generator itself: changing it silently would break every saved
         // game and every replay. Update this only on a deliberate change.
         Assert.Equal(
-            ["SpikeTrap-1", "Bridge-1", "SpikeTrap-2", "Normal-1", "Ruins-1"],
+            ["Lava-2", "Bridge-1", "Lava-3", "Normal-1", "Ruins-1"],
             DrawAll(seed: 42).Take(5));
     }
 }

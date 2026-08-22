@@ -5,24 +5,29 @@ using SubTerra.Core.Tiles;
 namespace SubTerra.Presentation;
 
 /// <summary>
-/// Draws a <see cref="TempleBoard"/> by instantiating one scene per tile kind from
+/// Draws a <see cref="TempleBoard"/> by instantiating one scene per printed tile from
 /// <c>scenes/board/</c>. This is the only place that knows how a <see cref="Cell"/>
 /// maps to world space — the rules engine never deals in metres.
 /// </summary>
 /// <remarks>
-/// Every tile scene carries all four walls, named <c>Wall_North</c> … <c>Wall_West</c>;
-/// the view hides the ones the tile opens onto. Nothing rotates: the rotation chosen
-/// when the tile was placed is already baked into <see cref="PlacedTile.OpenSides"/>,
-/// so any shape is expressible without turning the node.
+/// A tile is a piece of card: its passage is carved in, not assembled. Each scene
+/// holds the exact geometry of one kind-and-shape pair, and the view only lays it
+/// down and turns it — nothing here builds or hides walls.
 /// </remarks>
 public partial class BoardView : Node3D
 {
     /// <summary>Edge length of one tile, in metres. Must match the tile scenes.</summary>
     public const float TileSize = 2f;
 
-    private const string TileScenePath = "res://scenes/board/Tile{0}.tscn";
+    /// <summary>
+    /// One quarter turn of a tile. Negative because the model turns a tile clockwise
+    /// on the table — north becomes east — while Godot's Y rotation is anticlockwise.
+    /// </summary>
+    private const float QuarterTurnDegrees = -90f;
 
-    private readonly Dictionary<TileKind, PackedScene> _scenes = [];
+    private const string TileScenePath = "res://scenes/board/Tile{0}_{1}.tscn";
+
+    private readonly Dictionary<(TileKind Kind, TileShape Shape), PackedScene?> _scenes = [];
 
     public static Vector3 ToWorld(Cell cell) => new(cell.Column * TileSize, 0f, cell.Row * TileSize);
 
@@ -42,7 +47,7 @@ public partial class BoardView : Node3D
 
     private void AddTile(Cell cell, PlacedTile tile)
     {
-        if (SceneFor(tile.Kind) is not { } scene)
+        if (SceneFor(tile.Definition) is not { } scene)
         {
             return;
         }
@@ -50,36 +55,56 @@ public partial class BoardView : Node3D
         var node = scene.Instantiate<Node3D>();
         node.Name = $"Tile_{cell.Column}_{cell.Row}";
         node.Position = ToWorld(cell);
+        node.RotationDegrees = new Vector3(0f, QuarterTurnDegrees * tile.Rotation, 0f);
         AddChild(node);
 
-        foreach (var direction in DirectionExtensions.All)
+        VerifyGeometry(node, tile, cell);
+    }
+
+    /// <summary>
+    /// Checks that the carved scene agrees with the tile the rules engine placed. The
+    /// geometry is authored by hand, so a wall in the wrong place would otherwise show
+    /// up as a temple that silently disagrees with itself.
+    /// </summary>
+    private static void VerifyGeometry(Node3D node, PlacedTile tile, Cell cell)
+    {
+        foreach (var side in DirectionExtensions.All)
         {
-            if (node.GetNodeOrNull<Node3D>($"Wall_{direction}") is { } wall)
+            var carvedShut = node.GetNodeOrNull($"Rock/Wall_{side}") is not null;
+            var shutOnTable = !tile.IsOpen(side.Rotate(tile.Rotation));
+
+            if (carvedShut != shutOnTable)
             {
-                wall.Visible = !tile.IsOpen(direction);
+                GD.PushWarning(
+                    $"{tile.Definition.Id} en {cell} : la face {side} de la scène est " +
+                    $"{(carvedShut ? "murée" : "ouverte")}, le plateau la veut " +
+                    $"{(shutOnTable ? "murée" : "ouverte")}.");
             }
         }
     }
 
-    private PackedScene? SceneFor(TileKind kind)
+    private PackedScene? SceneFor(TileDefinition definition)
     {
-        if (_scenes.TryGetValue(kind, out var cached))
+        var key = (definition.Kind, definition.Shape);
+
+        if (_scenes.TryGetValue(key, out var cached))
         {
             return cached;
         }
 
-        var path = string.Format(TileScenePath, kind);
+        var path = string.Format(TileScenePath, definition.Kind, definition.Shape);
         var scene = ResourceLoader.Load<PackedScene>(path);
 
         if (scene is null)
         {
-            // A missing scene is a mistake worth hearing about, not a silent hole in
-            // the temple: fall back to the plain tile so the board stays walkable.
-            GD.PushWarning($"Aucune scène de tuile pour {kind} ({path}) — repli sur TileNormal.");
-            scene = ResourceLoader.Load<PackedScene>(string.Format(TileScenePath, TileKind.Normal));
+            // A missing tile is a mistake worth hearing about, not a silent hole in
+            // the temple: fall back to a plain tile of the same shape.
+            GD.PushWarning($"Aucune scène pour {definition.Kind}/{definition.Shape} ({path}).");
+            scene = ResourceLoader.Load<PackedScene>(
+                string.Format(TileScenePath, TileKind.Normal, definition.Shape));
         }
 
-        _scenes[kind] = scene;
+        _scenes[key] = scene;
         return scene;
     }
 }

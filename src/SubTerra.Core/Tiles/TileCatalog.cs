@@ -4,47 +4,22 @@ namespace SubTerra.Core.Tiles;
 public static class TileCatalog
 {
     /// <summary>
-    /// The thirty Temple tiles that start in the bag, and the passage carved through
-    /// each. The counts per kind come from the rulebook; the shapes are our own
-    /// design — see <see cref="TileShape"/>.
+    /// The tiles that start in the bag: kind, carved shape, and how many copies.
+    /// Dictated for this port — see docs/tuiles.md — not derived from the rulebook.
     /// </summary>
-    /// <remarks>
-    /// The mix averages a little under three openings per tile, which gives corridors
-    /// that branch and occasionally open out, rather than a field of crossroads.
-    /// </remarks>
     private static readonly (TileKind Kind, TileShape Shape, int Count)[] Composition =
     [
-        (TileKind.Normal, TileShape.Crossroads, 1),
-        (TileKind.Normal, TileShape.Junction, 1),
-        (TileKind.Normal, TileShape.Corridor, 1),
-
-        // A bridge spans a chasm: you cross it, you do not turn on it.
+        (TileKind.Normal, TileShape.Junction, 3),
         (TileKind.Bridge, TileShape.Corridor, 2),
-
-        // Keys must not end up behind a single choke point.
-        (TileKind.Key, TileShape.Crossroads, 1),
-        (TileKind.Key, TileShape.Junction, 2),
-
-        (TileKind.Lava, TileShape.Corridor, 2),
-        (TileKind.Lava, TileShape.Corner, 2),
-        (TileKind.Lava, TileShape.Junction, 1),
-
-        (TileKind.SpikeTrap, TileShape.Corridor, 1),
-        (TileKind.SpikeTrap, TileShape.Corner, 1),
-        (TileKind.SpikeTrap, TileShape.Junction, 1),
-
-        (TileKind.DartTrap, TileShape.Corridor, 2),
-        (TileKind.DartTrap, TileShape.Corner, 1),
-        (TileKind.DartTrap, TileShape.Junction, 1),
-
-        (TileKind.Ruins, TileShape.Corner, 2),
-        (TileKind.Ruins, TileShape.Junction, 2),
-        (TileKind.Ruins, TileShape.Corridor, 1),
-        (TileKind.Ruins, TileShape.Crossroads, 1),
-
-        // Guardians need room to hunt.
-        (TileKind.Guardian, TileShape.Crossroads, 2),
-        (TileKind.Guardian, TileShape.Junction, 2),
+        (TileKind.Key, TileShape.DeadEnd, 3),
+        (TileKind.DartTrap, TileShape.Corner, 4),
+        (TileKind.Lava, TileShape.Junction, 2),
+        (TileKind.Lava, TileShape.Crossroads, 3),
+        (TileKind.SpikeTrap, TileShape.Crossroads, 3),
+        (TileKind.Ruins, TileShape.Junction, 3),
+        (TileKind.Ruins, TileShape.Crossroads, 3),
+        (TileKind.Guardian, TileShape.DeadEnd, 2),
+        (TileKind.Guardian, TileShape.Corner, 2),
     ];
 
     private static readonly (TileShape Shape, int Count)[] JournalComposition =
@@ -74,7 +49,7 @@ public static class TileCatalog
                 // Each Ruins tile carries the die face that brings it down.
                 int? ruinsNumber = kind == TileKind.Ruins ? index : null;
 
-                tiles.Add(new TileDefinition($"{kind}-{index}", kind, shape.OpenSides(), ruinsNumber));
+                tiles.Add(new TileDefinition($"{kind}-{index}", kind, shape, ruinsNumber));
             }
         }
 
@@ -93,7 +68,7 @@ public static class TileCatalog
                 tiles.Add(new TileDefinition(
                     $"{TileKind.Journal}-{tiles.Count + 1}",
                     TileKind.Journal,
-                    shape.OpenSides()));
+                    shape));
             }
         }
 
@@ -101,5 +76,5 @@ public static class TileCatalog
     }
 
     public static TileDefinition Sanctuary { get; } =
-        new("Sanctuary", TileKind.Sanctuary, TileShape.Crossroads.OpenSides());
+        new("Sanctuary", TileKind.Sanctuary, TileShape.Crossroads);
 }

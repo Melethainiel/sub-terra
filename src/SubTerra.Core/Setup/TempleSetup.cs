@@ -78,6 +78,17 @@ public static class TempleSetup
         cell.Neighbour(Direction.East) == EntranceCrossing
         || cell.Neighbour(Direction.West) == EntranceCrossing;
 
-    private static PlacedTile Fixed(string id, TileKind kind, Sides openSides) =>
-        new(new TileDefinition(id, kind, openSides));
+    /// <summary>
+    /// Builds a setup piece from the passages it must offer, working back to the
+    /// printed shape and the turn that lays it out that way.
+    /// </summary>
+    private static PlacedTile Fixed(string id, TileKind kind, Sides openSides)
+    {
+        if (TileShapeExtensions.Match(openSides) is not { } layout)
+        {
+            throw new ArgumentException($"No tile shape lays out {openSides}.", nameof(openSides));
+        }
+
+        return new PlacedTile(new TileDefinition(id, kind, layout.Shape), layout.Rotation);
+    }
 }

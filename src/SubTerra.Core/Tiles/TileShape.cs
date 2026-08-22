@@ -21,6 +21,9 @@ public enum TileShape
 
     /// <summary>Open on two adjacent sides.</summary>
     Corner,
+
+    /// <summary>Open on one side only. The Entrance exit, and nothing in the bag.</summary>
+    DeadEnd,
 }
 
 public static class TileShapeExtensions
@@ -35,6 +38,28 @@ public static class TileShapeExtensions
         TileShape.Junction => Sides.North | Sides.East | Sides.South,
         TileShape.Corridor => Sides.North | Sides.South,
         TileShape.Corner => Sides.North | Sides.East,
+        TileShape.DeadEnd => Sides.North,
         _ => throw new ArgumentOutOfRangeException(nameof(shape)),
     };
+
+    /// <summary>
+    /// The shape and rotation that lay out exactly these open sides, or <c>null</c>
+    /// if no printed tile does. Lets the fixed setup pieces be described by the sides
+    /// they need rather than by a shape and a turn count worked out by hand.
+    /// </summary>
+    public static (TileShape Shape, int Rotation)? Match(Sides sides)
+    {
+        foreach (var shape in Enum.GetValues<TileShape>())
+        {
+            for (var rotation = 0; rotation < 4; rotation++)
+            {
+                if (shape.OpenSides().Rotate(rotation) == sides)
+                {
+                    return (shape, rotation);
+                }
+            }
+        }
+
+        return null;
+    }
 }
