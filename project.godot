@@ -1,6 +1,10 @@
 ; Engine configuration file.
 ; It's best edited using the editor UI and not directly,
 ; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -11,15 +15,23 @@ run/main_scene="res://scenes/app/Main.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
-[dotnet]
+[autoload]
 
-project/assembly_name="SubTerra"
+MCPRuntime="*uid://by6ul4pamc7eu"
 
 [display]
 
 window/size/viewport_width=1600
 window/size/viewport_height=900
 window/stretch/mode="canvas_items"
+
+[dotnet]
+
+project/assembly_name="SubTerra"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_mcp_editor/plugin.cfg", "res://addons/godot_mcp_runtime/plugin.cfg")
 
 [rendering]
 

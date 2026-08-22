@@ -42,15 +42,41 @@ public static class TempleSetup
     {
         for (var index = 0; index < cells.Count; index++)
         {
+            var cell = cells[index];
+
             // The strip runs east-west and opens south into the temple. Its outer end
             // is a Guardian cell, though no Guardian stands there at setup.
-            var isOuterEnd = cells[index].Column is 0 or 6;
-            var kind = isOuterEnd ? TileKind.Guardian : TileKind.Lateral;
-            var openSides = Sides.East | Sides.West | Sides.South;
+            var isOuterEnd = index == 0 || index == cells.Count - 1;
+            var kind = isOuterEnd && !JoinsCrossing(cell) ? TileKind.Guardian : TileKind.Lateral;
 
-            board.PlaceFixed(cells[index], Fixed($"Lateral-{side}-{index}", kind, openSides));
+            var openSides = Sides.South;
+            if (RunsOn(cells, cell, Direction.East))
+            {
+                openSides |= Sides.East;
+            }
+
+            if (RunsOn(cells, cell, Direction.West))
+            {
+                openSides |= Sides.West;
+            }
+
+            board.PlaceFixed(cell, Fixed($"Lateral-{side}-{index}", kind, openSides));
         }
     }
+
+    /// <summary>
+    /// Whether the strip continues in that direction — either another Lateral cell or
+    /// the Entrance crossing. The outer ends stay walled: nothing lies beyond them.
+    /// </summary>
+    private static bool RunsOn(IReadOnlyList<Cell> cells, Cell cell, Direction direction)
+    {
+        var neighbour = cell.Neighbour(direction);
+        return cells.Contains(neighbour) || neighbour == EntranceCrossing;
+    }
+
+    private static bool JoinsCrossing(Cell cell) =>
+        cell.Neighbour(Direction.East) == EntranceCrossing
+        || cell.Neighbour(Direction.West) == EntranceCrossing;
 
     private static PlacedTile Fixed(string id, TileKind kind, Sides openSides) =>
         new(new TileDefinition(id, kind, openSides));
