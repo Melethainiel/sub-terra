@@ -16,6 +16,9 @@ public sealed record TurnEnded(ExplorerId Explorer) : GameEvent;
 /// <summary>Every explorer has taken a turn; the temple now takes its own.</summary>
 public sealed record RoundEnded(int Round) : GameEvent;
 
+/// <summary>The medallion changed hands. The new round opens on its holder.</summary>
+public sealed record LeaderChanged(ExplorerId Leader) : GameEvent;
+
 public sealed record ExplorerMoved(ExplorerId Explorer, Cell From, Cell To) : GameEvent;
 
 public sealed record TileRevealed(Cell Cell, TileDefinition Tile, int Rotation) : GameEvent;

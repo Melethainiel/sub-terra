@@ -14,15 +14,19 @@ public sealed record Move(Direction Direction) : GameCommand;
 
 /// <summary>
 /// Draw a tile from the bag and lay it beyond one of the current tile's unconnected
-/// exits, turned as the player likes. Costs 1 action.
+/// exits. Costs 1 action.
 /// </summary>
-public sealed record Reveal(Direction Direction, int Rotation) : GameCommand;
+/// <param name="Rotation">
+/// How the player wants it turned, or <c>null</c> to accept any orientation that
+/// joins up — you only learn which tile you drew after you have committed to the exit.
+/// </param>
+public sealed record Reveal(Direction Direction, int? Rotation = null) : GameCommand;
 
 /// <summary>
 /// Reveal a tile and step onto it in one action — quicker than doing both, and a
 /// good deal more dangerous, since you walk onto whatever you just uncovered.
 /// </summary>
-public sealed record Explore(Direction Direction, int Rotation) : GameCommand;
+public sealed record Explore(Direction Direction, int? Rotation = null) : GameCommand;
 
 /// <summary>Up to three moves for two actions.</summary>
 public sealed record Run(IReadOnlyList<Direction> Steps) : GameCommand;

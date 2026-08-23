@@ -179,8 +179,13 @@ public class GameActionsTests
         game.Execute(new EndTurn());
         game.Execute(new Overexert());
         game.Execute(new Move(Direction.South));
-        game.Execute(new EndTurn());
 
+        for (var turn = 0; turn < 10 && game.CurrentExplorer.Id != game.Explorers[0].Id; turn++)
+        {
+            game.Execute(new EndTurn());
+        }
+
+        Assert.Equal(game.Explorers[0].Id, game.CurrentExplorer.Id);
         Assert.Equal(4, game.Explorers[1].Health);
         Assert.NotEqual(game.CurrentExplorer.Cell, game.Explorers[1].Cell);
         Assert.False(game.Execute(new Heal(game.Explorers[1].Id)).Accepted);

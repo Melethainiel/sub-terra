@@ -55,6 +55,16 @@ et les conditions de fin.
 
 Ne sont pas joués : les dix Explorateurs et leurs capacités, la tuile Journal.
 
+Le **Chef d'Expédition** existe : le médaillon passe au joueur suivant à chaque
+fin de manche, et la manche s'ouvre sur son porteur. Il ne tranche encore rien —
+les arbitrages restent résolus par l'ordre du plateau.
+
+Une **Révélation** ne fixe plus l'orientation avant la pioche. On choisit une
+issue, la tuile sort du sac, et l'orientation vient après : une préférence
+absente vaut « n'importe quel sens qui se raccorde », une préférence exprimée
+est honorée ou refusée, jamais silencieusement remplacée. C'est l'ordre réel des
+gestes, et c'est l'interface qui a révélé l'erreur.
+
 Deux écarts assumés, notés ici pour ne pas les oublier :
 
 - Le livret confie de nombreux arbitrages au **Chef d'Expédition** — quelle
@@ -80,6 +90,22 @@ Le Chef d'Expédition tranche les nombreux choix ambigus des règles (cible d'un
 attaque de Gardien, direction d'un déplacement, emplacement du Sanctuaire). Ces
 choix deviennent des commandes explicites adressées à un joueur désigné, pas des
 résolutions automatiques : c'est un point de conception à ne pas court-circuiter.
+
+## L'écran
+
+`AppRoot` détient l'unique `GameState` et redessine tout après chaque commande :
+`BoardView` pour les tuiles, `TokenView` pour les meeples, les Gardiens et les
+objets, `Hud` pour l'état en toutes lettres. Aucune animation — les événements
+sont affichés en texte, pas encore rejoués.
+
+Un clic se traduit en commande selon ce qu'il désigne : une tuile posée et
+voisine, on avance ; du vide au-delà d'une issue, on explore. Maj+clic révèle
+sans entrer, Ctrl+clic creuse. Les actions qui ne visent rien d'autre que sa
+propre tuile sont au clavier.
+
+Le clic ne passe par aucun collisionneur : on projette le rayon de la caméra sur
+le plan de la table et on arrondit. Le plateau est une grille, pas une scène à
+sonder.
 
 ## Arborescence Godot
 

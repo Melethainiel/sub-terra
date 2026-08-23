@@ -163,7 +163,7 @@ public class GameStateTests
         var game = Game(("Prêtre", 5), ("Guide", 3));
         game.Execute(new Overexert());
         game.Execute(new EndTurn());
-        game.Execute(new EndTurn());
+        PassTo(game, "Prêtre");
 
         Assert.True(game.Execute(new Overexert()).Accepted);
     }
@@ -187,7 +187,7 @@ public class GameStateTests
         var game = Game(("Fragile", 1), ("Prêtre", 5));
         game.Execute(new Overexert());
         game.Execute(new EndTurn());
-        game.Execute(new EndTurn());
+        PassTo(game, "Fragile");
 
         Assert.True(game.CurrentExplorer.IsDown);
         Assert.Equal(1, game.ActionPoints);
@@ -200,15 +200,40 @@ public class GameStateTests
     public void TurnsGoRoundAndTheRoundEndsWhenEveryoneHasPlayed()
     {
         var game = Game(("Guide", 3), ("Prêtre", 5));
+        Assert.Equal("Guide", game.Leader.Name);
 
         var first = game.Execute(new EndTurn());
         Assert.Equal("Prêtre", game.CurrentExplorer.Name);
         Assert.DoesNotContain(first.Events, e => e is RoundEnded);
 
         var second = game.Execute(new EndTurn());
-        Assert.Equal("Guide", game.CurrentExplorer.Name);
         Assert.Contains(new RoundEnded(1), second.Events);
         Assert.Equal(1, game.Round);
+    }
+
+    [Fact]
+    public void TheMedallionPassesOnAndTheNextRoundOpensOnItsHolder()
+    {
+        var game = Game(("Guide", 3), ("Prêtre", 5), ("Sapeur", 5));
+
+        foreach (var _ in game.Explorers)
+        {
+            game.Execute(new EndTurn());
+        }
+
+        Assert.Equal("Prêtre", game.Leader.Name);
+        Assert.Equal("Prêtre", game.CurrentExplorer.Name);
+    }
+
+    /// <summary>Hands the turn on until the named explorer is playing again.</summary>
+    private static void PassTo(GameState game, string name)
+    {
+        for (var turn = 0; turn < 20 && game.CurrentExplorer.Name != name && !game.IsOver; turn++)
+        {
+            game.Execute(new EndTurn());
+        }
+
+        Assert.Equal(name, game.CurrentExplorer.Name);
     }
 
     [Fact]

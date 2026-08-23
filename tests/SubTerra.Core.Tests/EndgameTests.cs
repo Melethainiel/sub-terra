@@ -181,8 +181,10 @@ public class EndgameTests
         Assert.True(game.Explorers[0].HasEscaped);
         Assert.False(game.IsOver);
 
-        game.Execute(new EndTurn());
-        game.Execute(new EndTurn());
+        for (var turn = 0; turn < 10 && game.CurrentExplorer.Id != new ExplorerId(0); turn++)
+        {
+            game.Execute(new EndTurn());
+        }
 
         Assert.Equal(new ExplorerId(0), game.CurrentExplorer.Id);
         Assert.Equal(0, game.ActionPoints);

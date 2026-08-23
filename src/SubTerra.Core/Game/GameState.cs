@@ -47,6 +47,7 @@ public sealed class GameState
     private readonly HashSet<Cell> _flooded = [];
 
     private int _current;
+    private int _turnsThisRound;
     private bool _bagAnnouncedEmpty;
 
     public GameState(
@@ -138,6 +139,14 @@ public sealed class GameState
 
     /// <summary>Rounds completed. Every explorer plays once per round.</summary>
     public int Round { get; private set; }
+
+    /// <summary>
+    /// Who holds the medallion. Play starts from them each round, and theirs is the
+    /// casting vote whenever the team cannot agree.
+    /// </summary>
+    public Explorer Leader => _explorers[LeaderIndex];
+
+    public int LeaderIndex { get; private set; }
 
     public IEnumerable<Explorer> ExplorersOn(Cell cell) =>
         _explorers.Where(explorer => explorer.Cell == cell);
@@ -384,9 +393,8 @@ public sealed class GameState
 
         var exit = new TempleExit(explorer.Cell, reveal.Direction);
         var drawn = Bag.Draw(Rng);
-        var tile = new PlacedTile(drawn, reveal.Rotation);
 
-        if (!Board.CanPlace(exit.Target, tile, exit.From))
+        if (Orientation(exit, drawn, reveal.Rotation) is not { } tile)
         {
             // Nothing has happened yet as far as the players are concerned, so the
             // tile goes straight back rather than being lost.
@@ -397,7 +405,7 @@ public sealed class GameState
         Board.Place(exit.Target, tile, exit.From);
         ActionPoints--;
 
-        var events = new List<GameEvent> { new TileRevealed(exit.Target, drawn, reveal.Rotation) };
+        var events = new List<GameEvent> { new TileRevealed(exit.Target, drawn, tile.Rotation) };
         events.AddRange(OnTilePlaced(exit.Target, drawn));
 
         if (Bag.IsEmpty && !_bagAnnouncedEmpty)
@@ -408,6 +416,28 @@ public sealed class GameState
         }
 
         return new CommandResult(true, null, events);
+    }
+
+    /// <summary>
+    /// How the drawn tile ends up lying. A player picks the exit first and only then
+    /// sees what came out of the bag, so an unstated preference means "any way that
+    /// joins up" — and a stated one is honoured or refused, never quietly overridden.
+    /// </summary>
+    private PlacedTile? Orientation(TempleExit exit, TileDefinition drawn, int? wanted)
+    {
+        var rotations = wanted is { } rotation ? [rotation] : Enumerable.Range(0, 4);
+
+        foreach (var candidate in rotations)
+        {
+            var tile = new PlacedTile(drawn, candidate);
+
+            if (Board.CanPlace(exit.Target, tile, exit.From))
+            {
+                return tile;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>What a tile brings with it the moment it hits the table.</summary>
@@ -1145,11 +1175,12 @@ public sealed class GameState
 
         events.Add(new TurnEnded(CurrentExplorer.Id));
 
-        _current++;
+        _current = (_current + 1) % _explorers.Count;
+        _turnsThisRound++;
 
-        if (_current == _explorers.Count)
+        if (_turnsThisRound == _explorers.Count)
         {
-            _current = 0;
+            _turnsThisRound = 0;
             Round++;
             events.Add(new RoundEnded(Round));
 
@@ -1164,9 +1195,13 @@ public sealed class GameState
             {
                 events.AddRange(AdvanceEruption());
             }
+
+            // The medallion passes on, and the next round opens on its new holder.
+            LeaderIndex = (LeaderIndex + 1) % _explorers.Count;
+            _current = LeaderIndex;
+            events.Add(new LeaderChanged(Leader.Id));
         }
 
-        // A downed explorer can only crawl: one tile, and nothing else.
         HasOverexerted = false;
 
         // Those who got out, and those the mountain kept, have no actions to take.

@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://dbdrjo6si81yv"]
 
 [ext_resource type="Script" uid="uid://6bpo8gat7mob" path="res://scripts/App/AppRoot.cs" id="1_approot"]
+[ext_resource type="PackedScene" path="res://scenes/ui/Hud.tscn" id="2_hud"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -34,3 +35,5 @@ shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1990016010]
 environment = SubResource("Environment_main")
+
+[node name="Hud" parent="." instance=ExtResource("2_hud")]
