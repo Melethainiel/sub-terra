@@ -7,3 +7,7 @@ export_presets.cfg
 bin/
 obj/
 *.user
+
+# Le livret de l'éditeur : 14 Mo qui pèseraient sur chaque clone pour toujours.
+# Il reste en local, docs/regles.md en porte la substance.
+docs/rules/

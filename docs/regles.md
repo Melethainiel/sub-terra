@@ -1,7 +1,9 @@
 # Sub Terra II : Au bord de l'enfer — règles, version implémentable
 
-Transcription structurée du livret officiel (Nuts! Publishing, 2021) rangé dans
-`docs/rules/sub-terra-2-regles-fr.pdf`. Source de vérité pour `SubTerra.Core`.
+Transcription structurée du livret officiel (Nuts! Publishing, 2021). Le PDF
+lui-même n'est pas versionné — 14 Mo qui pèseraient sur chaque clone ; il se range
+en local dans `docs/rules/`, que git ignore. Ce fichier-ci est la source de vérité
+pour `SubTerra.Core`.
 Les points marqués **[?]** ne sont pas tranchés par le livret et demandent une décision.
 
 Jeu coopératif, 1 à 6 joueurs. Explorer le temple, déverrouiller le sanctuaire,
