@@ -1,0 +1,155 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/App/Lobby.cs" id="1_lobby"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+content_margin_left = 16.0
+content_margin_top = 14.0
+content_margin_right = 16.0
+content_margin_bottom = 14.0
+bg_color = Color(0.09, 0.07, 0.066, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.24, 0.16, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="Lobby" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_lobby")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.055, 0.032, 0.028, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 24
+
+[node name="Rows" type="VBoxContainer" parent="Margin"]
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Margin/Rows"]
+text = "Sub Terra II — Au bord de l'enfer"
+theme_override_colors/font_color = Color(1, 0.72, 0.42, 1)
+theme_override_font_sizes/font_size = 30
+
+[node name="Link" type="HBoxContainer" parent="Margin/Rows"]
+theme_override_constants/separation = 10
+
+[node name="Solo" type="Button" parent="Margin/Rows/Link"]
+unique_name_in_owner = true
+text = "Jouer seul"
+
+[node name="Host" type="Button" parent="Margin/Rows/Link"]
+unique_name_in_owner = true
+text = "Héberger"
+
+[node name="Join" type="Button" parent="Margin/Rows/Link"]
+unique_name_in_owner = true
+text = "Rejoindre"
+
+[node name="Address" type="LineEdit" parent="Margin/Rows/Link"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+text = "127.0.0.1"
+placeholder_text = "adresse de l'hôte"
+
+[node name="Status" type="Label" parent="Margin/Rows/Link"]
+unique_name_in_owner = true
+text = ""
+vertical_alignment = 1
+theme_override_colors/font_color = Color(0.75, 0.68, 0.62, 1)
+
+[node name="Split" type="HBoxContainer" parent="Margin/Rows"]
+size_flags_vertical = 3
+theme_override_constants/separation = 24
+
+[node name="Left" type="VBoxContainer" parent="Margin/Rows/Split"]
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Heading" type="Label" parent="Margin/Rows/Split/Left"]
+text = "Les Explorateurs — clique pour en prendre un, reclique pour le rendre"
+theme_override_colors/font_color = Color(0.85, 0.78, 0.7, 1)
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/Rows/Split/Left"]
+size_flags_vertical = 3
+
+[node name="Roster" type="GridContainer" parent="Margin/Rows/Split/Left/Scroll"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+columns = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+
+[node name="Right" type="PanelContainer" parent="Margin/Rows/Split"]
+custom_minimum_size = Vector2(360, 0)
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Column" type="VBoxContainer" parent="Margin/Rows/Split/Right"]
+theme_override_constants/separation = 10
+
+[node name="Heading" type="Label" parent="Margin/Rows/Split/Right/Column"]
+text = "L'expédition"
+theme_override_colors/font_color = Color(1, 0.78, 0.5, 1)
+theme_override_font_sizes/font_size = 20
+
+[node name="Party" type="VBoxContainer" parent="Margin/Rows/Split/Right/Column"]
+unique_name_in_owner = true
+size_flags_vertical = 3
+theme_override_constants/separation = 4
+
+[node name="DifficultyRow" type="HBoxContainer" parent="Margin/Rows/Split/Right/Column"]
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="Margin/Rows/Split/Right/Column/DifficultyRow"]
+text = "Difficulté"
+vertical_alignment = 1
+
+[node name="Difficulty" type="OptionButton" parent="Margin/Rows/Split/Right/Column/DifficultyRow"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+
+[node name="SeedRow" type="HBoxContainer" parent="Margin/Rows/Split/Right/Column"]
+theme_override_constants/separation = 8
+
+[node name="Label" type="Label" parent="Margin/Rows/Split/Right/Column/SeedRow"]
+text = "Graine"
+vertical_alignment = 1
+
+[node name="Seed" type="LineEdit" parent="Margin/Rows/Split/Right/Column/SeedRow"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
+placeholder_text = "au hasard"
+
+[node name="Start" type="Button" parent="Margin/Rows/Split/Right/Column"]
+unique_name_in_owner = true
+disabled = true
+text = "Entrer dans le Temple"
+
+[node name="Hint" type="Label" parent="Margin/Rows"]
+unique_name_in_owner = true
+text = ""
+theme_override_colors/font_color = Color(0.62, 0.57, 0.52, 1)
+theme_override_font_sizes/font_size = 14

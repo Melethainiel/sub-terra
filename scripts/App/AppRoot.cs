@@ -1,5 +1,6 @@
 using Godot;
 using SubTerra.Core.Board;
+using SubTerra.Core.Explorers;
 using SubTerra.Core.Game;
 using SubTerra.Core.Tiles;
 using SubTerra.Presentation;
@@ -7,9 +8,17 @@ using SubTerra.Presentation;
 namespace SubTerra.App;
 
 /// <summary>
-/// Drives a game from the keyboard and mouse. It owns the only <see cref="GameState"/>
-/// and redraws the board after each command — no animation yet, just the truth.
+/// Drives a game from the keyboard and mouse. It owns this machine's
+/// <see cref="GameState"/> and redraws the board after each command — no animation
+/// yet, just the truth.
 /// </summary>
+/// <remarks>
+/// On a networked table every peer runs the same game from the same seed and applies
+/// the same commands in the same order. Nothing of the state itself travels: the host
+/// validates a command and relays the one line of text that describes it, and each
+/// peer replays it. A fingerprint rides along so a divergence is heard about rather
+/// than lived with.
+/// </remarks>
 public partial class AppRoot : Node3D
 {
     /// <summary>Same seed, same temple. Change it in the inspector to deal another one.</summary>
@@ -25,7 +34,13 @@ public partial class AppRoot : Node3D
     /// <summary>How many lines of the story stay on screen.</summary>
     private const int LogDepth = 3;
 
+    /// <summary>How often a client says "I am at the table" until the host answers.</summary>
+    private const double SeatingCall = 1.0;
+
     private readonly Queue<string> _log = [];
+
+    /// <summary>Host only: the peers that have the temple on screen.</summary>
+    private readonly HashSet<long> _seated = [];
 
     private GameState _game = null!;
     private BoardView _board = null!;
@@ -34,6 +49,9 @@ public partial class AppRoot : Node3D
     private Hud _hud = null!;
     private Camera3D _camera = null!;
     private Cell? _hovered;
+
+    /// <summary>Whether play has opened. A networked table waits for everybody.</summary>
+    private bool _begun = true;
 
     public override void _Ready()
     {
@@ -50,16 +68,37 @@ public partial class AppRoot : Node3D
         AddChild(_highlights);
         AddChild(_tokens);
 
-        var roster = Enumerable.Range(1, PartySize).Select(number => ($"Explorateur {number}", 5));
-        _game = GameState.NewGame(roster, (ulong)Seed, Difficulty);
+        _game = NewGame();
 
         Refresh();
         Say("L'expédition entre dans le temple.");
+
+        if (Session.IsOnline)
+        {
+            OpenTable();
+        }
+    }
+
+    /// <summary>
+    /// The party the lobby agreed on — or, when this scene is run on its own from the
+    /// editor, the throwaway one the exported properties describe.
+    /// </summary>
+    private GameState NewGame()
+    {
+        var party = Session.Sheets.ToList();
+
+        if (party.Count >= ExplorerRoster.SmallestParty)
+        {
+            return GameState.NewGame(party, Session.Seed, Session.Difficulty);
+        }
+
+        var roster = Enumerable.Range(1, PartySize).Select(number => ($"Explorateur {number}", 5));
+        return GameState.NewGame(roster, (ulong)Seed, Difficulty);
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (_game.IsOver)
+        if (_game.IsOver || !_begun)
         {
             return;
         }
@@ -155,6 +194,11 @@ public partial class AppRoot : Node3D
         Apply(revealOnly ? new Reveal(direction) : new Explore(direction));
     }
 
+    /// <summary>
+    /// A command from this machine's player. Alone, it is played on the spot; on a
+    /// networked table it goes to the host, who is the only one allowed to decide that
+    /// it happened.
+    /// </summary>
     private void Apply(GameCommand? command)
     {
         if (command is null)
@@ -163,6 +207,33 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        if (NotYourTurn() is { } refusal)
+        {
+            Say(refusal);
+            return;
+        }
+
+        if (!Session.IsOnline || Session.IsHost)
+        {
+            Settle(command);
+            return;
+        }
+
+        RpcId(Session.HostPeer, nameof(Request), CommandCodec.Encode(command));
+    }
+
+    /// <summary>
+    /// Whoever is due to act: the chooser while an arbitration stands, the explorer
+    /// whose turn it is otherwise.
+    /// </summary>
+    private ExplorerId Due => _game.Pending is { } decision ? decision.Chooser : _game.CurrentExplorer.Id;
+
+    private string? NotYourTurn() =>
+        Session.Owns(Due) ? null : $"C'est à {_game.Explorers[Due.Value].Name} de jouer.";
+
+    /// <summary>The host's word: it plays the command and tells everyone else to.</summary>
+    private void Settle(GameCommand command)
+    {
         var result = _game.Execute(command);
 
         if (!result.Accepted)
@@ -173,6 +244,163 @@ public partial class AppRoot : Node3D
 
         Refresh();
         Say(Describe(result.Events));
+
+        if (Session.IsOnline)
+        {
+            Rpc(nameof(Play), CommandCodec.Encode(command), _game.Fingerprint);
+        }
+    }
+
+    /// <summary>A client asking the host for something. Anything here is suspect.</summary>
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void Request(string line)
+    {
+        var sender = Multiplayer.GetRemoteSenderId();
+
+        if (CommandCodec.Decode(line) is not { } command)
+        {
+            GD.PushWarning($"Commande illisible de {sender} : {line}");
+            return;
+        }
+
+        if (Session.SeatOf(Due)?.Peer != sender)
+        {
+            RpcId(sender, nameof(Refused), "Ce n'est pas à vous de jouer.");
+            return;
+        }
+
+        var result = _game.Execute(command);
+
+        if (!result.Accepted)
+        {
+            RpcId(sender, nameof(Refused), result.Rejection ?? "Impossible.");
+            return;
+        }
+
+        Refresh();
+        Say(Describe(result.Events));
+        Rpc(nameof(Play), line, _game.Fingerprint);
+    }
+
+    /// <summary>
+    /// The host says this happened. Every peer replays it on its own game — same seed,
+    /// same commands, same temple — and checks it landed on the same state.
+    /// </summary>
+    [Rpc(CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void Play(string line, long fingerprint)
+    {
+        if (CommandCodec.Decode(line) is not { } command)
+        {
+            return;
+        }
+
+        var result = _game.Execute(command);
+
+        Refresh();
+        Say(Describe(result.Events));
+
+        if (_game.Fingerprint != fingerprint)
+        {
+            GD.PushError($"Désynchronisation après « {line} ».");
+            Say("Désynchronisation avec l'hôte : la partie n'est plus fiable.");
+        }
+    }
+
+    [Rpc(CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void Refused(string reason) => Say(reason);
+
+    // -------------------------------------------------------------- the table
+
+    /// <summary>
+    /// Nobody plays until everyone has the temple on screen: a command sent to a peer
+    /// still loading would be lost, and a lost command is a divergence.
+    /// </summary>
+    private void OpenTable()
+    {
+        _begun = false;
+        Multiplayer.PeerDisconnected += Abandoned;
+
+        if (Session.IsHost)
+        {
+            Seat(Session.LocalPeer);
+            return;
+        }
+
+        // The host may still be leaving the lobby, so keep saying it until it answers.
+        var knock = new Godot.Timer { Name = "Knock", WaitTime = SeatingCall, Autostart = true };
+        knock.Timeout += () =>
+        {
+            if (_begun)
+            {
+                knock.QueueFree();
+                return;
+            }
+
+            RpcId(Session.HostPeer, nameof(AtTheTable));
+        };
+
+        AddChild(knock);
+        Refresh();
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void AtTheTable() => Seat(Multiplayer.GetRemoteSenderId());
+
+    private void Seat(long peer)
+    {
+        _seated.Add(peer);
+
+        // A knock that crossed the answer: say it again to that peer alone.
+        if (_begun)
+        {
+            if (peer != Session.LocalPeer)
+            {
+                RpcId(peer, nameof(Begin));
+            }
+
+            return;
+        }
+
+        if (_seated.Count <= Multiplayer.GetPeers().Length)
+        {
+            Refresh();
+            return;
+        }
+
+        Rpc(nameof(Begin));
+        Begin();
+    }
+
+    [Rpc(CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void Begin()
+    {
+        _begun = true;
+        Refresh();
+        Say("Tout le monde est là. L'expédition commence.");
+    }
+
+    /// <summary>
+    /// A player who drops out would otherwise take their Explorers' turns with them.
+    /// The host picks up their seats so the expedition can go on.
+    /// </summary>
+    private void Abandoned(long peer)
+    {
+        if (!Session.IsHost)
+        {
+            return;
+        }
+
+        Session.HandOver(peer);
+        Rpc(nameof(Seats), Session.Encode(Session.Party));
+        Refresh();
+        Say($"Le joueur {peer} a quitté la table ; l'hôte reprend ses Explorateurs.");
+    }
+
+    [Rpc(CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void Seats(string party)
+    {
+        Session.Party = Session.Decode(party);
+        Refresh();
     }
 
     private void Hover(Cell? cell)
@@ -191,8 +419,33 @@ public partial class AppRoot : Node3D
         _board.Render(_game.Board);
         _tokens.Render(_game);
         _highlights.Render(Hints(), _hovered);
-        _hud.Show(_game);
+        _hud.Show(_game, Session.Owns(Due) && _begun, Notice());
         FrameBoard();
+    }
+
+    /// <summary>Who the table is waiting on, when there is more than one player.</summary>
+    private string Notice()
+    {
+        if (!Session.IsOnline)
+        {
+            return string.Empty;
+        }
+
+        if (!_begun)
+        {
+            return "En attente des autres joueurs…";
+        }
+
+        var name = _game.Explorers[Due.Value].Name;
+        var asking = _game.Pending is not null;
+
+        return (Session.Owns(Due), asking) switch
+        {
+            (true, true) => "À toi de trancher.",
+            (true, false) => "À toi de jouer.",
+            (false, true) => $"{name} doit trancher.",
+            (false, false) => $"Au tour de {name}.",
+        };
     }
 
     /// <summary>
@@ -203,7 +456,7 @@ public partial class AppRoot : Node3D
     {
         var hints = new Dictionary<Cell, HighlightView.Hint>();
 
-        if (_game.IsOver)
+        if (_game.IsOver || !_begun || !Session.Owns(Due))
         {
             return hints;
         }

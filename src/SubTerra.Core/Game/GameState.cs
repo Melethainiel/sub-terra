@@ -1,4 +1,5 @@
 using SubTerra.Core.Board;
+using SubTerra.Core.Explorers;
 using SubTerra.Core.Randomness;
 using SubTerra.Core.Setup;
 using SubTerra.Core.Tiles;
@@ -94,6 +95,22 @@ public sealed class GameState
         return new GameState(explorers, board, TileBag.Temple(), new Rng(seed), difficulty);
     }
 
+    /// <summary>
+    /// A game from a chosen party. The order of the party is the order of play, and
+    /// the first seat holds the medallion.
+    /// </summary>
+    public static GameState NewGame(
+        IEnumerable<ExplorerSheet> party,
+        ulong seed,
+        Difficulty difficulty = Difficulty.Normal)
+    {
+        var board = TempleSetup.CreateBoard();
+        var explorers = party.Select((sheet, index) =>
+            new Explorer(new ExplorerId(index), sheet.Name, sheet.MaxHealth, TempleSetup.EntranceCrossing, sheet));
+
+        return new GameState(explorers, board, TileBag.Temple(), new Rng(seed), difficulty);
+    }
+
     public TempleBoard Board { get; }
 
     public TileBag Bag { get; }
@@ -171,6 +188,58 @@ public sealed class GameState
 
     public IEnumerable<Explorer> ExplorersOn(Cell cell) =>
         _explorers.Where(explorer => explorer.Cell == cell);
+
+    /// <summary>
+    /// A cheap hash of everything that matters. Two peers replaying the same seed and
+    /// the same commands must show the same number; the day they do not, the network
+    /// says so instead of quietly drifting apart.
+    /// </summary>
+    /// <remarks>
+    /// Hashed by hand rather than with <see cref="HashCode"/>, whose seed is drawn
+    /// afresh in every process — it would never agree with the machine next door.
+    /// </remarks>
+    public long Fingerprint
+    {
+        get
+        {
+            const ulong Basis = 14695981039346656037;
+            const ulong Prime = 1099511628211;
+
+            var hash = Basis;
+
+            void Mix(long value) => hash = (hash ^ (ulong)value) * Prime;
+
+            Mix((long)Rng.State);
+            Mix(Round);
+            Mix(_current);
+            Mix(ActionPoints);
+            Mix(Board.Tiles.Count);
+            Mix(_rubble.Count);
+            Mix(_flooded.Count);
+            Mix(KeysDeposited);
+            Mix(EruptionCountdown);
+            Mix((long)Outcome);
+            Mix(Pending is { } decision ? (long)decision.Kind + 1 : 0);
+
+            foreach (var explorer in _explorers)
+            {
+                Mix(explorer.Health);
+                Mix(explorer.Cell.Column);
+                Mix(explorer.Cell.Row);
+                Mix(explorer.Carried is { } item ? (long)item + 1 : 0);
+                Mix(explorer.HasEscaped ? 1 : 0);
+                Mix(explorer.IsDead ? 1 : 0);
+            }
+
+            foreach (var guardian in _guardians)
+            {
+                Mix(guardian.Column);
+                Mix(guardian.Row);
+            }
+
+            return unchecked((long)hash);
+        }
+    }
 
     /// <summary>
     /// Where the current explorer could step. An interface uses this to show what a

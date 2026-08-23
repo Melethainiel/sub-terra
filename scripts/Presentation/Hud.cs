@@ -33,6 +33,7 @@ public partial class Hud : CanvasLayer
         "Clic : avancer ou explorer   ·   Maj+clic : révéler sans entrer   ·   Ctrl+clic : creuser";
 
     private Label _header = null!;
+    private Label _notice = null!;
     private VBoxContainer _party = null!;
     private Label _log = null!;
     private Label _hint = null!;
@@ -44,6 +45,7 @@ public partial class Hud : CanvasLayer
     public override void _Ready()
     {
         _header = GetNode<Label>("%Header");
+        _notice = GetNode<Label>("%Notice");
         _party = GetNode<VBoxContainer>("%Party");
         _log = GetNode<Label>("%Log");
         _hint = GetNode<Label>("%Hint");
@@ -63,8 +65,15 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    public void Show(GameState game)
+    /// <param name="mine">
+    /// Whether the seat that is due to act belongs to this machine. On a networked
+    /// table the others' turns are watched, not played.
+    /// </param>
+    public void Show(GameState game, bool mine = true, string notice = "")
     {
+        _notice.Text = notice;
+        _notice.Visible = notice.Length > 0;
+
         _header.Text = string.Join("   ·   ",
             $"Manche {game.Round + 1}",
             $"Chef ★ {game.Leader.Name}",
@@ -73,10 +82,11 @@ public partial class Hud : CanvasLayer
             $"Clés {game.KeysDeposited}/{GameState.KeysToUnlock}");
 
         ShowParty(game);
-        ShowDecision(game);
+        ShowDecision(game, mine);
 
-        // Nothing may be done while the game is waiting on an answer, or once it is over.
-        var frozen = game.IsOver || game.Pending is not null;
+        // Nothing may be done while the game is waiting on an answer, once it is over,
+        // or while it is somebody else's turn.
+        var frozen = game.IsOver || game.Pending is not null || !mine;
 
         foreach (var button in _actions.GetChildren().OfType<Button>())
         {
@@ -116,7 +126,7 @@ public partial class Hud : CanvasLayer
         }
     }
 
-    private void ShowDecision(GameState game)
+    private void ShowDecision(GameState game, bool mine)
     {
         foreach (var child in _options.GetChildren())
         {
@@ -136,6 +146,7 @@ public partial class Hud : CanvasLayer
         {
             var taken = index;
             var button = Press(option.Label);
+            button.Disabled = !mine;
             button.Pressed += () => EmitSignal(SignalName.OptionChosen, taken);
             _options.AddChild(button);
         }

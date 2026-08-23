@@ -1,4 +1,5 @@
 using SubTerra.Core.Board;
+using SubTerra.Core.Explorers;
 
 namespace SubTerra.Core.Game;
 
@@ -12,11 +13,17 @@ public readonly record struct ExplorerId(int Value)
 /// does not kill them, it puts them on the floor, where they can only crawl until
 /// someone heals them.
 /// </summary>
-public sealed class Explorer(ExplorerId id, string name, int maxHealth, Cell cell)
+public sealed class Explorer(ExplorerId id, string name, int maxHealth, Cell cell, ExplorerSheet? sheet = null)
 {
     public ExplorerId Id { get; } = id;
 
     public string Name { get; } = name;
+
+    /// <summary>
+    /// The card they were chosen from, when there is one. Tests deal explorers by
+    /// hand and do not need a sheet; a real party always has one.
+    /// </summary>
+    public ExplorerSheet? Sheet { get; } = sheet;
 
     public int MaxHealth { get; } = maxHealth;
 
