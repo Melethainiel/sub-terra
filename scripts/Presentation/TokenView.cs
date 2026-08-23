@@ -10,20 +10,6 @@ namespace SubTerra.Presentation;
 /// </summary>
 public partial class TokenView : Node3D
 {
-    private static readonly Color[] ExplorerColours =
-    [
-        Color.Color8(96, 190, 120),
-        Color.Color8(226, 118, 96),
-        Color.Color8(118, 158, 232),
-        Color.Color8(232, 206, 108),
-        Color.Color8(200, 128, 216),
-        Color.Color8(120, 214, 210),
-    ];
-
-    private static readonly Color GuardianColour = Color.Color8(150, 86, 208);
-    private static readonly Color KeyColour = Color.Color8(255, 208, 96);
-    private static readonly Color ArtefactColour = Color.Color8(255, 122, 40);
-
     public void Render(GameState game)
     {
         foreach (var child in GetChildren())
@@ -43,7 +29,7 @@ public partial class TokenView : Node3D
             AddMeeple(
                 $"Explorer_{explorer.Id.Value}",
                 explorer.Cell,
-                ExplorerColours[explorer.Id.Value % ExplorerColours.Length],
+                Palette.For(explorer.Id),
                 height: explorer.IsDown ? 0.18f : 0.5f,
                 offset: Fan(rank),
                 lying: explorer.IsDown);
@@ -51,7 +37,7 @@ public partial class TokenView : Node3D
 
         foreach (var (cell, index) in game.Guardians.Select((cell, index) => (cell, index)))
         {
-            AddMeeple($"Guardian_{index}", cell, GuardianColour, height: 0.62f, offset: Fan(4 + index));
+            AddMeeple($"Guardian_{index}", cell, Palette.Guardian, height: 0.62f, offset: Fan(4 + index));
         }
 
         foreach (var (cell, _) in game.Board.Tiles)
@@ -98,7 +84,7 @@ public partial class TokenView : Node3D
 
     private void AddToken(string name, Cell cell, ItemKind item)
     {
-        var colour = item == ItemKind.Artefact ? ArtefactColour : KeyColour;
+        var colour = item == ItemKind.Artefact ? Palette.Artefact : Palette.Key;
 
         AddChild(new MeshInstance3D
         {

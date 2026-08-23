@@ -51,3 +51,9 @@ public sealed record Overexert : GameCommand;
 
 /// <summary>Hand over to the next explorer.</summary>
 public sealed record EndTurn : GameCommand;
+
+/// <summary>
+/// Settles the arbitration the game is waiting on, by the index of the option taken
+/// from <see cref="GameState.Pending"/>. Free, and only its owner may send it.
+/// </summary>
+public sealed record Decide(int Option) : GameCommand;

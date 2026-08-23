@@ -16,8 +16,17 @@ public sealed record TurnEnded(ExplorerId Explorer) : GameEvent;
 /// <summary>Every explorer has taken a turn; the temple now takes its own.</summary>
 public sealed record RoundEnded(int Round) : GameEvent;
 
-/// <summary>The medallion changed hands. The new round opens on its holder.</summary>
-public sealed record LeaderChanged(ExplorerId Leader) : GameEvent;
+/// <summary>
+/// The rules have run into a tie and handed it to a player. Play is suspended until a
+/// <see cref="Decide"/> command answers it.
+/// </summary>
+public sealed record DecisionRequired(PendingDecision Decision) : GameEvent;
+
+/// <summary>The tie was settled, and the consequences pick up where they stopped.</summary>
+public sealed record DecisionMade(PendingDecision Decision, int Option) : GameEvent
+{
+    public DecisionOption Chosen => Decision.Options[Option];
+}
 
 public sealed record ExplorerMoved(ExplorerId Explorer, Cell From, Cell To) : GameEvent;
 

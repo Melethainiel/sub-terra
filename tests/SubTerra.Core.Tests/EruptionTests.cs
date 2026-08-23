@@ -43,7 +43,7 @@ public class EruptionTests
         var game = Game(Difficulty.Expert, explorers: 1);
         var start = game.EruptionCountdown;
 
-        var result = game.Execute(new EndTurn());
+        var result = game.Play(new EndTurn());
 
         Assert.Equal(start - 1, game.EruptionCountdown);
         Assert.Contains(new EruptionAdvanced(start - 1), result.Events);
@@ -55,7 +55,7 @@ public class EruptionTests
         var game = Game(Difficulty.Expert, explorers: 2);
         var start = game.EruptionCountdown;
 
-        game.Execute(new EndTurn());
+        game.Play(new EndTurn());
 
         Assert.Equal(start, game.EruptionCountdown);
     }
@@ -68,7 +68,7 @@ public class EruptionTests
 
         while (!game.IsVolcanoReady && !game.IsOver)
         {
-            announcement = game.Execute(new EndTurn()).Events.LastOrDefault(e => e is VolcanoReady)
+            announcement = game.Play(new EndTurn()).Events.LastOrDefault(e => e is VolcanoReady)
                 ?? announcement;
         }
 
@@ -85,13 +85,13 @@ public class EruptionTests
 
         while (!game.IsVolcanoReady && !game.IsOver)
         {
-            game.Execute(new EndTurn());
+            game.Play(new EndTurn());
         }
 
         // Keep taking turns until the Peril die shows a flame.
         for (var turn = 0; turn < 400 && !game.IsOver; turn++)
         {
-            game.Execute(new EndTurn());
+            game.Play(new EndTurn());
         }
 
         Assert.True(game.HasErupted);

@@ -50,6 +50,15 @@ public sealed class GameState
     private int _turnsThisRound;
     private bool _bagAnnouncedEmpty;
 
+    /// <summary>
+    /// The consequences still unrolling. They are kept suspended while someone is
+    /// being asked to settle a tie, and resumed the moment they answer.
+    /// </summary>
+    private IEnumerator<GameEvent>? _script;
+
+    /// <summary>The option the last <see cref="Decide"/> took, read straight after <see cref="Ask"/>.</summary>
+    private int _answer;
+
     public GameState(
         IEnumerable<Explorer> explorers,
         TempleBoard board,
@@ -141,15 +150,61 @@ public sealed class GameState
     public int Round { get; private set; }
 
     /// <summary>
-    /// Who holds the medallion. Play starts from them each round, and theirs is the
-    /// casting vote whenever the team cannot agree.
+    /// Who holds the medallion. Chosen at setup and theirs for the whole expedition:
+    /// play opens on them each round, and theirs is the casting vote whenever the team
+    /// cannot agree.
     /// </summary>
     public Explorer Leader => _explorers[LeaderIndex];
 
-    public int LeaderIndex { get; private set; }
+    /// <summary>The medallion's seat. It does not move once the game has begun.</summary>
+    public int LeaderIndex { get; }
+
+    /// <summary>
+    /// The tie the game is waiting on, or <c>null</c> if play may go on. While one
+    /// stands, <see cref="Decide"/> is the only command that will be accepted.
+    /// </summary>
+    public PendingDecision? Pending { get; private set; }
+
+    /// <summary>Whoever the rules put in charge of settling <paramref name="decision"/>.</summary>
+    public Explorer Chooser(PendingDecision decision) =>
+        _explorers.First(explorer => explorer.Id == decision.Chooser);
 
     public IEnumerable<Explorer> ExplorersOn(Cell cell) =>
         _explorers.Where(explorer => explorer.Cell == cell);
+
+    /// <summary>
+    /// Where the current explorer could step. An interface uses this to show what a
+    /// click would do — a courtesy, not an authority: every command is checked again
+    /// on the way in, and this is only ever a hint.
+    /// </summary>
+    public IEnumerable<Direction> Steps() =>
+        DirectionExtensions.All.Where(direction =>
+            StepRejection(CurrentExplorer, CurrentExplorer.Cell, direction) is null);
+
+    /// <summary>The unconnected sides of the current explorer's tile: where one could be laid.</summary>
+    public IEnumerable<Direction> Exits()
+    {
+        if (Bag.IsEmpty || Board.TileAt(CurrentExplorer.Cell) is not { } tile)
+        {
+            yield break;
+        }
+
+        foreach (var direction in DirectionExtensions.All)
+        {
+            var target = CurrentExplorer.Cell.Neighbour(direction);
+
+            if (tile.IsOpen(direction) && !Board.IsOccupied(target) && Board.Bounds.Contains(target))
+            {
+                yield return direction;
+            }
+        }
+    }
+
+    /// <summary>The rubble within reach of the current explorer: their tile, or a neighbour.</summary>
+    public IEnumerable<Cell> DigTargets() =>
+        Board.ConnectedNeighbours(CurrentExplorer.Cell)
+            .Append(CurrentExplorer.Cell)
+            .Where(_rubble.Contains);
 
     public CommandResult Execute(GameCommand command)
     {
@@ -158,20 +213,119 @@ public sealed class GameState
             return CommandResult.Reject("La partie est terminée.");
         }
 
-        var result = Dispatch(command);
-
-        if (!result.Accepted)
+        if (command is Decide decide)
         {
-            return result;
+            return Resume(decide);
         }
 
-        var events = new List<GameEvent>(result.Events);
-        events.AddRange(CheckForEnding());
+        if (Pending is { } waiting)
+        {
+            return CommandResult.Reject($"{Chooser(waiting).Name} doit d'abord trancher : {waiting.Prompt}");
+        }
+
+        var (rejection, script) = Dispatch(command);
+
+        if (rejection is not null)
+        {
+            return CommandResult.Reject(rejection);
+        }
+
+        _script = script.Concat(CheckForEnding()).GetEnumerator();
+
+        return new CommandResult(true, null, Pump());
+    }
+
+    /// <summary>
+    /// Settles the tie on the table and lets the interrupted consequences finish. An
+    /// arbitration is a command like any other, so a game still replays from its seed
+    /// and its list of commands.
+    /// </summary>
+    private CommandResult Resume(Decide decide)
+    {
+        if (Pending is not { } decision)
+        {
+            return CommandResult.Reject("Aucun arbitrage en attente.");
+        }
+
+        if (decide.Option < 0 || decide.Option >= decision.Options.Count)
+        {
+            return CommandResult.Reject($"Choix hors de la liste : {decide.Option}.");
+        }
+
+        Pending = null;
+        _answer = decide.Option;
+
+        var events = new List<GameEvent> { new DecisionMade(decision, decide.Option) };
+        events.AddRange(Pump());
 
         return new CommandResult(true, null, events);
     }
 
-    private CommandResult Dispatch(GameCommand command) => command switch
+    /// <summary>
+    /// Unrolls the consequences of a command until they are spent — or until one of
+    /// them needs an answer, which leaves the script standing exactly where it is.
+    /// </summary>
+    private List<GameEvent> Pump()
+    {
+        var events = new List<GameEvent>();
+
+        while (_script is { } script)
+        {
+            if (!script.MoveNext())
+            {
+                _script = null;
+                break;
+            }
+
+            events.Add(script.Current);
+
+            if (Pending is not null)
+            {
+                break;
+            }
+        }
+
+        return events;
+    }
+
+    /// <summary>
+    /// Puts a tie to whoever the rules say owns it and suspends until they answer; the
+    /// caller reads <see cref="_answer"/> as soon as this is done. One option is no
+    /// choice at all and settles itself, so the temple never asks a rhetorical question.
+    /// </summary>
+    private IEnumerable<GameEvent> Ask(
+        DecisionKind kind,
+        string prompt,
+        ExplorerId chooser,
+        IReadOnlyList<DecisionOption> options)
+    {
+        _answer = 0;
+
+        if (options.Count < 2)
+        {
+            yield break;
+        }
+
+        Pending = new PendingDecision(kind, prompt, chooser, options);
+        yield return new DecisionRequired(Pending);
+
+        // Execution picks up here once Decide has filled in _answer.
+    }
+
+    /// <summary>
+    /// What a command amounts to: a refusal, or the consequences waiting to unroll.
+    /// Those stay lazy, which is what lets an arbitration stop them halfway.
+    /// </summary>
+    private readonly record struct Script(string? Rejection, IEnumerable<GameEvent> Events)
+    {
+        public static Script Refuse(string reason) => new(reason, []);
+
+        public static Script Of(IEnumerable<GameEvent> events) => new(null, events);
+
+        public static Script Of(params GameEvent[] events) => new(null, events);
+    }
+
+    private Script Dispatch(GameCommand command) => command switch
     {
         Move move => ExecuteMove(move),
         Run run => ExecuteRun(run),
@@ -184,45 +338,45 @@ public sealed class GameState
         Dig dig => ExecuteDig(dig),
         Overexert => ExecuteOverexert(),
         EndTurn => ExecuteEndTurn(),
-        _ => CommandResult.Reject($"Commande inconnue : {command.GetType().Name}."),
+        _ => Script.Refuse($"Commande inconnue : {command.GetType().Name}."),
     };
 
-    private CommandResult ExecuteMove(Move move)
+    private Script ExecuteMove(Move move)
     {
         if (!CurrentExplorer.IsPlaying)
         {
-            return CommandResult.Reject("Cet Explorateur a quitté le Temple.");
+            return Script.Refuse("Cet Explorateur a quitté le Temple.");
         }
 
         if (ActionPoints < 1)
         {
-            return CommandResult.Reject("Plus de point d'action.");
+            return Script.Refuse("Plus de point d'action.");
         }
 
         if (StepRejection(CurrentExplorer, CurrentExplorer.Cell, move.Direction) is { } rejection)
         {
-            return CommandResult.Reject(rejection);
+            return Script.Refuse(rejection);
         }
 
         ActionPoints--;
-        return new CommandResult(true, null, [.. Step(CurrentExplorer, move.Direction)]);
+        return Script.Of(Step(CurrentExplorer, move.Direction));
     }
 
-    private CommandResult ExecuteRun(Run run)
+    private Script ExecuteRun(Run run)
     {
         if (RequireActive() is { } down)
         {
-            return CommandResult.Reject(down);
+            return Script.Refuse(down);
         }
 
         if (run.Steps.Count is 0 or > 3)
         {
-            return CommandResult.Reject("Courir couvre une à trois tuiles.");
+            return Script.Refuse("Courir couvre une à trois tuiles.");
         }
 
         if (ActionPoints < 2)
         {
-            return CommandResult.Reject("Courir coûte deux points d'action.");
+            return Script.Refuse("Courir coûte deux points d'action.");
         }
 
         // The whole route is checked before a single step is taken: a run that cannot
@@ -233,7 +387,7 @@ public sealed class GameState
         {
             if (StepRejection(CurrentExplorer, cell, direction) is { } rejection)
             {
-                return CommandResult.Reject(rejection);
+                return Script.Refuse(rejection);
             }
 
             cell = cell.Neighbour(direction);
@@ -253,7 +407,7 @@ public sealed class GameState
             }
         }
 
-        return new CommandResult(true, null, events);
+        return Script.Of(events);
     }
 
     /// <summary>Why this step is not allowed, or <c>null</c> if it is.</summary>
@@ -372,23 +526,23 @@ public sealed class GameState
         }
     }
 
-    private CommandResult ExecuteReveal(Reveal reveal)
+    private Script ExecuteReveal(Reveal reveal)
     {
         if (RequireActive() is { } down)
         {
-            return CommandResult.Reject(down);
+            return Script.Refuse(down);
         }
 
         if (ActionPoints < 1)
         {
-            return CommandResult.Reject("Plus de point d'action.");
+            return Script.Refuse("Plus de point d'action.");
         }
 
         var explorer = CurrentExplorer;
 
         if (Bag.IsEmpty)
         {
-            return CommandResult.Reject("Le sac de tuiles est vide.");
+            return Script.Refuse("Le sac de tuiles est vide.");
         }
 
         var exit = new TempleExit(explorer.Cell, reveal.Direction);
@@ -399,23 +553,40 @@ public sealed class GameState
             // Nothing has happened yet as far as the players are concerned, so the
             // tile goes straight back rather than being lost.
             Bag.Return(drawn);
-            return CommandResult.Reject($"{drawn.Id} ne se raccorde pas à {exit.From} vers {reveal.Direction}.");
+            return Script.Refuse($"{drawn.Id} ne se raccorde pas à {exit.From} vers {reveal.Direction}.");
         }
 
         Board.Place(exit.Target, tile, exit.From);
         ActionPoints--;
 
-        var events = new List<GameEvent> { new TileRevealed(exit.Target, drawn, tile.Rotation) };
-        events.AddRange(OnTilePlaced(exit.Target, drawn));
+        return Script.Of(RevealScript(exit.Target, drawn, tile.Rotation));
+    }
 
-        if (Bag.IsEmpty && !_bagAnnouncedEmpty)
+    /// <summary>
+    /// What the newly laid tile brings with it — and, if that was the last one in the
+    /// bag, the Sanctuary at the far end of the temple.
+    /// </summary>
+    private IEnumerable<GameEvent> RevealScript(Cell cell, TileDefinition drawn, int rotation)
+    {
+        yield return new TileRevealed(cell, drawn, rotation);
+
+        foreach (var consequence in OnTilePlaced(cell, drawn))
         {
-            _bagAnnouncedEmpty = true;
-            events.Add(new BagEmptied());
-            events.AddRange(PlaceSanctuary());
+            yield return consequence;
         }
 
-        return new CommandResult(true, null, events);
+        if (!Bag.IsEmpty || _bagAnnouncedEmpty)
+        {
+            yield break;
+        }
+
+        _bagAnnouncedEmpty = true;
+        yield return new BagEmptied();
+
+        foreach (var found in PlaceSanctuary())
+        {
+            yield return found;
+        }
     }
 
     /// <summary>
@@ -480,50 +651,56 @@ public sealed class GameState
     /// Reveal and step on in one action. If the tile turns out to be unenterable the
     /// explorer stays put — but the tile is on the table either way.
     /// </summary>
-    private CommandResult ExecuteExplore(Explore explore)
+    private Script ExecuteExplore(Explore explore)
     {
         var revealed = ExecuteReveal(new Reveal(explore.Direction, explore.Rotation));
 
-        if (!revealed.Accepted)
-        {
-            return revealed;
-        }
-
-        var events = new List<GameEvent>(revealed.Events);
-
-        if (StepRejection(CurrentExplorer, CurrentExplorer.Cell, explore.Direction) is null)
-        {
-            events.AddRange(Step(CurrentExplorer, explore.Direction));
-        }
-
-        return new CommandResult(true, null, events);
+        return revealed.Rejection is not null
+            ? revealed
+            : Script.Of(ExploreScript(revealed.Events, explore.Direction));
     }
 
-    private CommandResult ExecuteHeal(Heal heal)
+    private IEnumerable<GameEvent> ExploreScript(IEnumerable<GameEvent> revealed, Direction direction)
+    {
+        foreach (var consequence in revealed)
+        {
+            yield return consequence;
+        }
+
+        if (StepRejection(CurrentExplorer, CurrentExplorer.Cell, direction) is null)
+        {
+            foreach (var consequence in Step(CurrentExplorer, direction))
+            {
+                yield return consequence;
+            }
+        }
+    }
+
+    private Script ExecuteHeal(Heal heal)
     {
         if (RequireActive() is { } down)
         {
-            return CommandResult.Reject(down);
+            return Script.Refuse(down);
         }
 
         if (ActionPoints < 1)
         {
-            return CommandResult.Reject("Plus de point d'action.");
+            return Script.Refuse("Plus de point d'action.");
         }
 
         if (_explorers.FirstOrDefault(e => e.Id == heal.Target) is not { } target)
         {
-            return CommandResult.Reject($"Aucun Explorateur {heal.Target}.");
+            return Script.Refuse($"Aucun Explorateur {heal.Target}.");
         }
 
         if (target.Cell != CurrentExplorer.Cell)
         {
-            return CommandResult.Reject("On ne soigne que sur sa propre tuile.");
+            return Script.Refuse("On ne soigne que sur sa propre tuile.");
         }
 
         if (target.Health == target.MaxHealth)
         {
-            return CommandResult.Reject($"{target.Name} est déjà au maximum.");
+            return Script.Refuse($"{target.Name} est déjà au maximum.");
         }
 
         var wasDown = target.IsDown;
@@ -537,31 +714,31 @@ public sealed class GameState
             events.Add(new ExplorerStoodUp(target.Id));
         }
 
-        return new CommandResult(true, null, events);
+        return Script.Of(events);
     }
 
-    private CommandResult ExecutePickUp(PickUpItem pickUp)
+    private Script ExecutePickUp(PickUpItem pickUp)
     {
         if (RequireActive() is { } down)
         {
-            return CommandResult.Reject(down);
+            return Script.Refuse(down);
         }
 
         if (ActionPoints < 1)
         {
-            return CommandResult.Reject("Plus de point d'action.");
+            return Script.Refuse("Plus de point d'action.");
         }
 
         var explorer = CurrentExplorer;
 
         if (explorer.Carried is { } held)
         {
-            return CommandResult.Reject($"{explorer.Name} porte déjà : {held}.");
+            return Script.Refuse($"{explorer.Name} porte déjà : {held}.");
         }
 
         if (!_items.TryGetValue(explorer.Cell, out var items) || !items.Remove(pickUp.Item))
         {
-            return CommandResult.Reject($"Rien de tel sur {explorer.Cell}.");
+            return Script.Refuse($"Rien de tel sur {explorer.Cell}.");
         }
 
         explorer.Carried = pickUp.Item;
@@ -576,26 +753,26 @@ public sealed class GameState
             events.Add(new CurseFell());
         }
 
-        return new CommandResult(true, null, events);
+        return Script.Of(events);
     }
 
-    private CommandResult ExecuteDrop()
+    private Script ExecuteDrop()
     {
         if (RequireActive() is { } down)
         {
-            return CommandResult.Reject(down);
+            return Script.Refuse(down);
         }
 
         if (ActionPoints < 1)
         {
-            return CommandResult.Reject("Plus de point d'action.");
+            return Script.Refuse("Plus de point d'action.");
         }
 
         var explorer = CurrentExplorer;
 
         if (explorer.Carried is not { } item)
         {
-            return CommandResult.Reject($"{explorer.Name} ne porte rien.");
+            return Script.Refuse($"{explorer.Name} ne porte rien.");
         }
 
         explorer.Carried = null;
@@ -613,31 +790,31 @@ public sealed class GameState
                 turned.Add(new ArtefactRevealed(vault));
             }
 
-            return new CommandResult(true, null, turned);
+            return Script.Of(turned);
         }
 
         Drop(explorer.Cell, item);
 
-        return CommandResult.Accept(new ItemDropped(explorer.Id, item, explorer.Cell));
+        return Script.Of(new ItemDropped(explorer.Id, item, explorer.Cell));
     }
 
-    private CommandResult ExecuteAttack()
+    private Script ExecuteAttack()
     {
         if (RequireActive() is { } down)
         {
-            return CommandResult.Reject(down);
+            return Script.Refuse(down);
         }
 
         if (ActionPoints < 1)
         {
-            return CommandResult.Reject("Plus de point d'action.");
+            return Script.Refuse("Plus de point d'action.");
         }
 
         var cell = CurrentExplorer.Cell;
 
         if (!_guardians.Contains(cell))
         {
-            return CommandResult.Reject($"Aucun ennemi sur {cell}.");
+            return Script.Refuse($"Aucun ennemi sur {cell}.");
         }
 
         ActionPoints--;
@@ -651,46 +828,43 @@ public sealed class GameState
             events.Add(new GuardianEliminated(cell));
         }
 
-        return new CommandResult(true, null, events);
+        return Script.Of(events);
     }
 
-    private CommandResult ExecuteDig(Dig dig)
+    private Script ExecuteDig(Dig dig)
     {
         if (RequireActive() is { } down)
         {
-            return CommandResult.Reject(down);
+            return Script.Refuse(down);
         }
 
         if (ActionPoints < 2)
         {
-            return CommandResult.Reject("Creuser coûte deux points d'action.");
+            return Script.Refuse("Creuser coûte deux points d'action.");
         }
 
         var cell = CurrentExplorer.Cell;
 
         if (dig.Cell != cell && !Board.AreConnected(cell, dig.Cell))
         {
-            return CommandResult.Reject($"{dig.Cell} n'est ni votre tuile ni une voisine reliée.");
+            return Script.Refuse($"{dig.Cell} n'est ni votre tuile ni une voisine reliée.");
         }
 
         if (!_rubble.Remove(dig.Cell))
         {
-            return CommandResult.Reject($"Pas d'Éboulis sur {dig.Cell}.");
+            return Script.Refuse($"Pas d'Éboulis sur {dig.Cell}.");
         }
 
         ActionPoints -= 2;
-        return CommandResult.Accept(new RubbleCleared(dig.Cell));
+        return Script.Of(new RubbleCleared(dig.Cell));
     }
 
     /// <summary>
     /// With the bag empty there is enough of the temple on the table to know where the
     /// sanctuary lies: as far from the Entrance as it can be reached. Its hall takes
-    /// the three keys, and the vault beyond it holds the Artefact.
+    /// the three keys, and the vault beyond it holds the Artefact. Where several tiles
+    /// at that depth would take it, the rules hand the choice to the leader.
     /// </summary>
-    /// <remarks>
-    /// The rules let the expedition leader choose between equal spots; the deepest
-    /// row and then the lowest column stand in for that, so a game replays the same.
-    /// </remarks>
     private IEnumerable<GameEvent> PlaceSanctuary()
     {
         if (SanctuaryHall is not null)
@@ -698,18 +872,55 @@ public sealed class GameState
             yield break;
         }
 
-        // Deepest first: the sanctuary belongs as far from the Entrance as the temple
-        // reaches. The rules let the expedition leader pick between equal spots; the
-        // deepest vault, then the deepest hall, then the lowest column stand in for
-        // that, so a game replays the same.
-        var candidates = Board.OpenExits()
-            .Select(exit => (Exit: exit, Hall: exit.Target, Vault: exit.Target.Neighbour(exit.Direction)))
-            .OrderByDescending(spot => spot.Vault.Row)
-            .ThenByDescending(spot => spot.Hall.Row)
-            .ThenBy(spot => spot.Hall.Column);
+        var sites = SanctuarySites();
 
-        foreach (var (exit, hall, vault) in candidates)
+        if (sites.Count == 0)
         {
+            yield break;
+        }
+
+        foreach (var asking in Ask(
+            DecisionKind.SanctuarySite,
+            "Le sac est vide : par où s'ouvre le Sanctuaire ?",
+            Leader.Id,
+            [.. sites.Select(site => new DecisionOption($"{site.Hall} vers {site.Exit.Direction}", site.Hall))]))
+        {
+            yield return asking;
+        }
+
+        var chosen = sites[_answer];
+
+        Board.Place(chosen.Hall, chosen.HallTile, chosen.Exit.From);
+        Board.PlaceFixed(chosen.Vault, chosen.VaultTile);
+
+        SanctuaryHall = chosen.Hall;
+        SanctuaryVault = chosen.Vault;
+
+        yield return new SanctuaryFound(chosen.Hall, chosen.Vault);
+    }
+
+    /// <summary>A hall and the vault behind it, and the two tiles cut to fit them.</summary>
+    private readonly record struct SanctuarySite(
+        TempleExit Exit,
+        Cell Hall,
+        Cell Vault,
+        PlacedTile HallTile,
+        PlacedTile VaultTile);
+
+    /// <summary>
+    /// Every place the sanctuary could open, kept to the deepest row it reaches — the
+    /// rulebook's "colonne la plus éloignée possible de l'Entrée". All the equals come
+    /// back, so the leader is the one who picks between them.
+    /// </summary>
+    private IReadOnlyList<SanctuarySite> SanctuarySites()
+    {
+        var sites = new List<SanctuarySite>();
+
+        foreach (var exit in Board.OpenExits())
+        {
+            var hall = exit.Target;
+            var vault = hall.Neighbour(exit.Direction);
+
             if (Board.IsOccupied(vault) || !Board.Bounds.Contains(vault))
             {
                 continue;
@@ -729,17 +940,27 @@ public sealed class GameState
                 continue;
             }
 
-            Board.Place(hall, hallTile, exit.From);
-            Board.PlaceFixed(vault, new PlacedTile(
-                new TileDefinition("Sanctuary-Vault", TileKind.Sanctuary, vaultLayout.Shape),
-                vaultLayout.Rotation));
-
-            SanctuaryHall = hall;
-            SanctuaryVault = vault;
-
-            yield return new SanctuaryFound(hall, vault);
-            yield break;
+            sites.Add(new SanctuarySite(
+                exit,
+                hall,
+                vault,
+                hallTile,
+                new PlacedTile(
+                    new TileDefinition("Sanctuary-Vault", TileKind.Sanctuary, vaultLayout.Shape),
+                    vaultLayout.Rotation)));
         }
+
+        if (sites.Count == 0)
+        {
+            return [];
+        }
+
+        var deepest = sites.Max(site => site.Vault.Row);
+
+        return [.. sites
+            .Where(site => site.Vault.Row == deepest)
+            .OrderBy(site => site.Hall.Column)
+            .ThenBy(site => site.Hall.Row)];
     }
 
     private static Sides SidesFor(Direction direction) => (Sides)(1 << (int)direction);
@@ -898,18 +1119,18 @@ public sealed class GameState
         _ => null,
     };
 
-    private CommandResult ExecuteOverexert()
+    private Script ExecuteOverexert()
     {
         var explorer = CurrentExplorer;
 
         if (explorer.IsDown)
         {
-            return CommandResult.Reject("À terre, un Explorateur ne peut pas se dépasser.");
+            return Script.Refuse("À terre, un Explorateur ne peut pas se dépasser.");
         }
 
         if (HasOverexerted)
         {
-            return CommandResult.Reject("Déjà dépassé ce tour-ci.");
+            return Script.Refuse("Déjà dépassé ce tour-ci.");
         }
 
         HasOverexerted = true;
@@ -918,7 +1139,7 @@ public sealed class GameState
         var events = new List<GameEvent>();
         events.AddRange(Wound(explorer, 1));
 
-        return new CommandResult(true, null, events);
+        return Script.Of(events);
     }
 
     /// <summary>
@@ -1083,6 +1304,11 @@ public sealed class GameState
         }
     }
 
+    /// <summary>
+    /// A Guardian tile stirs, the nearest to the active explorer along connected
+    /// tiles. Ties are theirs to settle — the rules give this one to the active player
+    /// rather than to the leader.
+    /// </summary>
     private IEnumerable<GameEvent> WakeGuardian(Explorer explorer)
     {
         if (_guardians.Count >= MaxGuardians)
@@ -1090,22 +1316,57 @@ public sealed class GameState
             yield break;
         }
 
-        var path = Board.ShortestPath(
-            explorer.Cell,
-            cell => Board.TileAt(cell)?.Kind == TileKind.Guardian);
+        var pockets = NearestGuardianPockets(explorer.Cell);
 
-        // The explorer may already be standing in a guardian pocket.
-        var cell = Board.TileAt(explorer.Cell)?.Kind == TileKind.Guardian
-            ? explorer.Cell
-            : path?.LastOrDefault();
-
-        if (cell is not { } woken)
+        if (pockets.Count == 0)
         {
             yield break;
         }
 
+        foreach (var asking in Ask(
+            DecisionKind.GuardianAwakening,
+            "Un Gardien s'éveille : sur quelle case Gardien ?",
+            explorer.Id,
+            [.. pockets.Select(pocket => new DecisionOption($"Case Gardien {pocket}", pocket))]))
+        {
+            yield return asking;
+        }
+
+        var woken = pockets[_answer];
+
         _guardians.Add(woken);
         yield return new GuardianAppeared(woken);
+    }
+
+    /// <summary>
+    /// The Guardian tiles closest to a cell, measured along connected tiles. Standing
+    /// in a pocket already is a distance of nothing at all.
+    /// </summary>
+    private IReadOnlyList<Cell> NearestGuardianPockets(Cell from)
+    {
+        if (Board.TileAt(from)?.Kind == TileKind.Guardian)
+        {
+            return [from];
+        }
+
+        var pockets = Board.Tiles
+            .Where(entry => entry.Value.Kind == TileKind.Guardian)
+            .Select(entry => (Cell: entry.Key, Distance: Board.Distance(from, entry.Key)))
+            .Where(pocket => pocket.Distance is not null)
+            .ToList();
+
+        if (pockets.Count == 0)
+        {
+            return [];
+        }
+
+        var nearest = pockets.Min(pocket => pocket.Distance!.Value);
+
+        return [.. pockets
+            .Where(pocket => pocket.Distance == nearest)
+            .Select(pocket => pocket.Cell)
+            .OrderBy(cell => cell.Row)
+            .ThenBy(cell => cell.Column)];
     }
 
     /// <summary>Every guardian in play takes one action, in the order they appeared.</summary>
@@ -1121,19 +1382,30 @@ public sealed class GameState
     }
 
     /// <summary>
-    /// The first thing on the list it can do: strike, close in, or dig. Ties that the
-    /// rules hand to the expedition leader are settled here by board order instead —
-    /// deterministic, and a decision to revisit when the leader can be asked.
+    /// The first thing on the list it can do: strike, close in, or dig. Each of the
+    /// three can come out a tie, and every tie goes to the Chef d'Expédition — the
+    /// temple never picks its own victim.
     /// </summary>
     private IEnumerable<GameEvent> ActivateGuardian(int index)
     {
         var cell = _guardians[index];
+        var prey = ExplorersOn(cell).Where(IsPrey).ToList();
 
-        if (ExplorersOn(cell).FirstOrDefault(explorer => !explorer.IsDown) is { } prey)
+        if (prey.Count > 0)
         {
-            yield return new GuardianAttacked(cell, prey.Id);
+            foreach (var asking in Ask(
+                DecisionKind.GuardianTarget,
+                $"Le Gardien de {cell} frappe : qui encaisse ?",
+                Leader.Id,
+                [.. prey.Select(target => new DecisionOption(target.Name, cell, target.Id))]))
+            {
+                yield return asking;
+            }
 
-            foreach (var wound in Wound(prey, GuardianDamage))
+            var struck = prey[_answer];
+            yield return new GuardianAttacked(cell, struck.Id);
+
+            foreach (var wound in Wound(struck, GuardianDamage))
             {
                 yield return wound;
             }
@@ -1141,39 +1413,101 @@ public sealed class GameState
             yield break;
         }
 
-        var path = Board.ShortestPath(
-            cell,
-            target => ExplorersOn(target).Any(explorer => !explorer.IsDown),
-            target => !_rubble.Contains(target));
+        var steps = StepsTowardPrey(cell);
 
-        if (path is [var next, ..] && !_rubble.Contains(next))
+        if (steps.Count > 0)
         {
+            foreach (var asking in Ask(
+                DecisionKind.GuardianStep,
+                $"Le Gardien de {cell} avance : par où ?",
+                Leader.Id,
+                [.. steps.Select(step => new DecisionOption($"Vers {step}", step))]))
+            {
+                yield return asking;
+            }
+
+            var next = steps[_answer];
+
             _guardians[index] = next;
             yield return new GuardianStepped(cell, next);
             yield break;
         }
 
-        foreach (var neighbour in Board.ConnectedNeighbours(cell))
+        var buried = Board.ConnectedNeighbours(cell).Where(_rubble.Contains).ToList();
+
+        if (buried.Count == 0)
         {
-            if (_rubble.Remove(neighbour))
-            {
-                yield return new GuardianClearedRubble(cell, neighbour);
-                yield break;
-            }
+            yield break;
         }
+
+        foreach (var asking in Ask(
+            DecisionKind.GuardianDig,
+            $"Le Gardien de {cell} déblaie : quel Éboulis ?",
+            Leader.Id,
+            [.. buried.Select(rubble => new DecisionOption($"Éboulis {rubble}", rubble))]))
+        {
+            yield return asking;
+        }
+
+        var cleared = buried[_answer];
+
+        _rubble.Remove(cleared);
+        yield return new GuardianClearedRubble(cell, cleared);
     }
 
-    private CommandResult ExecuteEndTurn()
-    {
-        var events = new List<GameEvent>();
+    /// <summary>Someone a guardian would bother with: in the temple, and on their feet.</summary>
+    private static bool IsPrey(Explorer explorer) => explorer.IsPlaying && !explorer.IsDown;
 
+    /// <summary>
+    /// Every first step that puts the guardian on a shortest route to someone worth
+    /// chasing. More than one, and the leader says which way it lumbers.
+    /// </summary>
+    private IReadOnlyList<Cell> StepsTowardPrey(Cell cell)
+    {
+        var candidates = Board.ConnectedNeighbours(cell)
+            .Where(next => !_rubble.Contains(next))
+            .Select(next => (Cell: next, Distance: DistanceToPrey(next)))
+            .Where(step => step.Distance is not null)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        var shortest = candidates.Min(step => step.Distance!.Value);
+
+        return [.. candidates.Where(step => step.Distance == shortest).Select(step => step.Cell)];
+    }
+
+    /// <summary>Tiles from here to the nearest explorer still standing, rubble barring the way.</summary>
+    private int? DistanceToPrey(Cell cell) =>
+        ExplorersOn(cell).Any(IsPrey)
+            ? 0
+            : Board.ShortestPath(
+                cell,
+                target => ExplorersOn(target).Any(IsPrey),
+                target => !_rubble.Contains(target))?.Count;
+
+    private Script ExecuteEndTurn() => Script.Of(EndTurnScript());
+
+    /// <summary>
+    /// The temple answers, then the turn passes. A round ends once everyone has played
+    /// — the medallion stays where it was dealt, and the next round opens on its holder
+    /// again, which is simply the seat play started from.
+    /// </summary>
+    private IEnumerable<GameEvent> EndTurnScript()
+    {
         // Under the curse the temple answers twice for every turn taken.
         for (var roll = 0; roll < (IsCursed ? 2 : 1); roll++)
         {
-            events.AddRange(ResolvePeril(CurrentExplorer));
+            foreach (var peril in ResolvePeril(CurrentExplorer))
+            {
+                yield return peril;
+            }
         }
 
-        events.Add(new TurnEnded(CurrentExplorer.Id));
+        yield return new TurnEnded(CurrentExplorer.Id);
 
         _current = (_current + 1) % _explorers.Count;
         _turnsThisRound++;
@@ -1182,24 +1516,25 @@ public sealed class GameState
         {
             _turnsThisRound = 0;
             Round++;
-            events.Add(new RoundEnded(Round));
+            yield return new RoundEnded(Round);
 
             // The temple takes its own turn once everyone has taken theirs.
             for (var activation = 0; activation < GuardianActivationsPerRound; activation++)
             {
-                events.AddRange(ActivateGuardians());
+                foreach (var action in ActivateGuardians())
+                {
+                    yield return action;
+                }
             }
 
             // Two steps under the curse: carrying the Artefact hurries the mountain.
             for (var step = 0; step < (IsCursed ? 2 : 1); step++)
             {
-                events.AddRange(AdvanceEruption());
+                foreach (var tremor in AdvanceEruption())
+                {
+                    yield return tremor;
+                }
             }
-
-            // The medallion passes on, and the next round opens on its new holder.
-            LeaderIndex = (LeaderIndex + 1) % _explorers.Count;
-            _current = LeaderIndex;
-            events.Add(new LeaderChanged(Leader.Id));
         }
 
         HasOverexerted = false;
@@ -1212,8 +1547,6 @@ public sealed class GameState
             _ => ActionsPerTurn,
         };
 
-        events.Add(new TurnBegan(CurrentExplorer.Id, ActionPoints));
-
-        return new CommandResult(true, null, events);
+        yield return new TurnBegan(CurrentExplorer.Id, ActionPoints);
     }
 }

@@ -41,7 +41,7 @@ public class GameActionsTests
     {
         var game = GameWith(TempleSetup.CreateBoard(), new TileBag([Tile(TileKind.Normal, TileShape.Junction)]));
 
-        var result = game.Execute(new Explore(Direction.South, Rotation: 0));
+        var result = game.Play(new Explore(Direction.South, Rotation: 0));
 
         Assert.True(result.Accepted);
         Assert.Equal(new Cell(Start.Column, 1), game.CurrentExplorer.Cell);
@@ -62,7 +62,7 @@ public class GameActionsTests
             new TileBag([Tile(TileKind.Bridge, TileShape.Corridor)]),
             new Rng(1));
 
-        var result = game.Execute(new Explore(Direction.South, Rotation: 0));
+        var result = game.Play(new Explore(Direction.South, Rotation: 0));
 
         Assert.True(result.Accepted);
         Assert.True(game.Board.IsOccupied(landing));
@@ -75,7 +75,7 @@ public class GameActionsTests
     {
         var game = GameWith(CorridorSouth(3));
 
-        var result = game.Execute(new Run([Direction.South, Direction.South, Direction.South]));
+        var result = game.Play(new Run([Direction.South, Direction.South, Direction.South]));
 
         Assert.True(result.Accepted);
         Assert.Equal(new Cell(Start.Column, 3), game.CurrentExplorer.Cell);
@@ -87,7 +87,7 @@ public class GameActionsTests
     {
         var game = GameWith(CorridorSouth(2));
 
-        var result = game.Execute(new Run([Direction.South, Direction.South, Direction.South]));
+        var result = game.Play(new Run([Direction.South, Direction.South, Direction.South]));
 
         Assert.False(result.Accepted);
         Assert.Equal(Start, game.CurrentExplorer.Cell);
@@ -98,9 +98,9 @@ public class GameActionsTests
     public void RunningNeedsBothActionPoints()
     {
         var game = GameWith(CorridorSouth(3));
-        game.Execute(new Move(Direction.South));
+        game.Play(new Move(Direction.South));
 
-        Assert.False(game.Execute(new Run([Direction.South])).Accepted);
+        Assert.False(game.Play(new Run([Direction.South])).Accepted);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class GameActionsTests
     {
         var game = GameWith(CorridorSouth(4));
 
-        var result = game.Execute(new Run([.. Enumerable.Repeat(Direction.South, 4)]));
+        var result = game.Play(new Run([.. Enumerable.Repeat(Direction.South, 4)]));
 
         Assert.False(result.Accepted);
     }
@@ -122,7 +122,7 @@ public class GameActionsTests
     {
         var game = GameWith(CorridorSouth(1, TileKind.SpikeTrap), seed: seed, roster: [("Guide", 7)]);
 
-        var result = game.Execute(new Move(Direction.South));
+        var result = game.Play(new Move(Direction.South));
         var roll = Assert.Single(result.Events.OfType<DieRolled>()).Face;
 
         if (roll >= GameState.SpikeTrapSafeRoll)
@@ -142,7 +142,7 @@ public class GameActionsTests
     {
         var rolls = Enumerable.Range(1, 40)
             .Select(seed => GameWith(CorridorSouth(1, TileKind.SpikeTrap), seed: (ulong)seed, roster: [("Guide", 7)]))
-            .Select(game => game.Execute(new Move(Direction.South)).Events.OfType<DieRolled>().Single().Face)
+            .Select(game => game.Play(new Move(Direction.South)).Events.OfType<DieRolled>().Single().Face)
             .ToList();
 
         Assert.Contains(rolls, roll => roll >= GameState.SpikeTrapSafeRoll);
@@ -153,9 +153,9 @@ public class GameActionsTests
     public void HealingGivesBackAHeartOnYourOwnTile()
     {
         var game = GameWith(TempleSetup.CreateBoard(), roster: [("Guide", 3)]);
-        game.Execute(new Overexert());
+        game.Play(new Overexert());
 
-        var result = game.Execute(new Heal(game.CurrentExplorer.Id));
+        var result = game.Play(new Heal(game.CurrentExplorer.Id));
 
         Assert.True(result.Accepted);
         Assert.Equal(3, game.CurrentExplorer.Health);
@@ -167,7 +167,7 @@ public class GameActionsTests
     {
         var game = GameWith(TempleSetup.CreateBoard());
 
-        Assert.False(game.Execute(new Heal(game.CurrentExplorer.Id)).Accepted);
+        Assert.False(game.Play(new Heal(game.CurrentExplorer.Id)).Accepted);
     }
 
     [Fact]
@@ -176,30 +176,30 @@ public class GameActionsTests
         var game = GameWith(CorridorSouth(1), roster: [("Guide", 3), ("Prêtre", 5)]);
 
         // The priest spends a heart, walks off, and hands the turn back.
-        game.Execute(new EndTurn());
-        game.Execute(new Overexert());
-        game.Execute(new Move(Direction.South));
+        game.Play(new EndTurn());
+        game.Play(new Overexert());
+        game.Play(new Move(Direction.South));
 
         for (var turn = 0; turn < 10 && game.CurrentExplorer.Id != game.Explorers[0].Id; turn++)
         {
-            game.Execute(new EndTurn());
+            game.Play(new EndTurn());
         }
 
         Assert.Equal(game.Explorers[0].Id, game.CurrentExplorer.Id);
         Assert.Equal(4, game.Explorers[1].Health);
         Assert.NotEqual(game.CurrentExplorer.Cell, game.Explorers[1].Cell);
-        Assert.False(game.Execute(new Heal(game.Explorers[1].Id)).Accepted);
+        Assert.False(game.Play(new Heal(game.Explorers[1].Id)).Accepted);
     }
 
     [Fact]
     public void AHealedExplorerGetsBackOnTheirFeet()
     {
         var game = GameWith(TempleSetup.CreateBoard(), roster: [("Fragile", 1), ("Prêtre", 5)]);
-        game.Execute(new Overexert());
+        game.Play(new Overexert());
         Assert.True(game.Explorers[0].IsDown);
 
-        game.Execute(new EndTurn());
-        var result = game.Execute(new Heal(game.Explorers[0].Id));
+        game.Play(new EndTurn());
+        var result = game.Play(new Heal(game.Explorers[0].Id));
 
         Assert.True(result.Accepted);
         Assert.False(game.Explorers[0].IsDown);
@@ -210,9 +210,9 @@ public class GameActionsTests
     public void AnExplorerPicksUpTheKeyLyingOnTheirTile()
     {
         var game = GameWith(TempleSetup.CreateBoard(), new TileBag([Tile(TileKind.Key, TileShape.DeadEnd)]));
-        game.Execute(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South, Rotation: 0));
 
-        var result = game.Execute(new PickUpItem(ItemKind.Key));
+        var result = game.Play(new PickUpItem(ItemKind.Key));
 
         Assert.True(result.Accepted);
         Assert.Equal(ItemKind.Key, game.CurrentExplorer.Carried);
@@ -223,16 +223,16 @@ public class GameActionsTests
     public void AnExplorerCarriesOneThingAtATime()
     {
         var game = GameWith(TempleSetup.CreateBoard(), new TileBag([Tile(TileKind.Key, TileShape.DeadEnd)]));
-        game.Execute(new Explore(Direction.South, Rotation: 0));
-        game.Execute(new PickUpItem(ItemKind.Key));
-        game.Execute(new EndTurn());
-        game.Execute(new DropItem());
+        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new PickUpItem(ItemKind.Key));
+        game.Play(new EndTurn());
+        game.Play(new DropItem());
 
         // Two keys on the tile now would still only let them hold one.
         Assert.Null(game.CurrentExplorer.Carried);
         Assert.Equal([ItemKind.Key], game.ItemsOn(game.CurrentExplorer.Cell));
-        Assert.True(game.Execute(new PickUpItem(ItemKind.Key)).Accepted);
-        Assert.False(game.Execute(new PickUpItem(ItemKind.Key)).Accepted);
+        Assert.True(game.Play(new PickUpItem(ItemKind.Key)).Accepted);
+        Assert.False(game.Play(new PickUpItem(ItemKind.Key)).Accepted);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class GameActionsTests
     {
         var game = GameWith(TempleSetup.CreateBoard());
 
-        Assert.False(game.Execute(new PickUpItem(ItemKind.Key)).Accepted);
+        Assert.False(game.Play(new PickUpItem(ItemKind.Key)).Accepted);
     }
 
     [Fact]
@@ -248,6 +248,6 @@ public class GameActionsTests
     {
         var game = GameWith(TempleSetup.CreateBoard());
 
-        Assert.False(game.Execute(new DropItem()).Accepted);
+        Assert.False(game.Play(new DropItem()).Accepted);
     }
 }

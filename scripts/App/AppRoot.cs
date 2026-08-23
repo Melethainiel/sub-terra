@@ -22,27 +22,39 @@ public partial class AppRoot : Node3D
     [Export]
     public Difficulty Difficulty { get; set; } = Difficulty.Normal;
 
+    /// <summary>How many lines of the story stay on screen.</summary>
+    private const int LogDepth = 3;
+
+    private readonly Queue<string> _log = [];
+
     private GameState _game = null!;
     private BoardView _board = null!;
     private TokenView _tokens = null!;
+    private HighlightView _highlights = null!;
     private Hud _hud = null!;
     private Camera3D _camera = null!;
+    private Cell? _hovered;
 
     public override void _Ready()
     {
         _camera = GetNode<Camera3D>("Camera3D");
         _hud = GetNode<Hud>("Hud");
 
+        _hud.ActionRequested += action => Apply(Command(action));
+        _hud.OptionChosen += option => Apply(new Decide(option));
+
         _board = new BoardView { Name = "BoardView" };
         _tokens = new TokenView { Name = "TokenView" };
+        _highlights = new HighlightView { Name = "HighlightView" };
         AddChild(_board);
+        AddChild(_highlights);
         AddChild(_tokens);
 
         var roster = Enumerable.Range(1, PartySize).Select(number => ($"Explorateur {number}", 5));
         _game = GameState.NewGame(roster, (ulong)Seed, Difficulty);
 
         Refresh();
-        _hud.Say("L'expédition entre dans le temple.");
+        Say("L'expédition entre dans le temple.");
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -54,8 +66,12 @@ public partial class AppRoot : Node3D
 
         switch (@event)
         {
-            case InputEventKey { Pressed: true, Echo: false } key when Bind(key.Keycode) is { } command:
-                Apply(command);
+            case InputEventMouseMotion motion:
+                Hover(CellUnder(motion.Position));
+                break;
+
+            case InputEventKey { Pressed: true, Echo: false } key when Bind(key.Keycode) is { } action:
+                Apply(Command(action));
                 GetViewport().SetInputAsHandled();
                 break;
 
@@ -71,25 +87,51 @@ public partial class AppRoot : Node3D
     /// The actions that need no target beyond the explorer's own tile. Everything that
     /// points somewhere goes through the mouse instead.
     /// </summary>
-    private GameCommand? Bind(Key key) => key switch
+    private static string? Bind(Key key) => key switch
     {
-        Key.Space => new EndTurn(),
-        Key.A => new Attack(),
-        Key.H => new Heal(_game.CurrentExplorer.Id),
-        Key.O => new Overexert(),
-        Key.D => new DropItem(),
-        Key.P when _game.ItemsOn(_game.CurrentExplorer.Cell) is [var item, ..] => new PickUpItem(item),
-        Key.P => null,
+        Key.Space => "endturn",
+        Key.A => "attack",
+        Key.H => "heal",
+        Key.O => "overexert",
+        Key.D => "drop",
+        Key.P => "pickup",
+        _ => null,
+    };
+
+    /// <summary>The same six actions, whether they came from a key or from a button.</summary>
+    private GameCommand? Command(string action) => action switch
+    {
+        "endturn" => new EndTurn(),
+        "attack" => new Attack(),
+        "heal" => new Heal(_game.CurrentExplorer.Id),
+        "overexert" => new Overexert(),
+        "drop" => new DropItem(),
+        "pickup" when _game.ItemsOn(_game.CurrentExplorer.Cell) is [var item, ..] => new PickUpItem(item),
+        "pickup" => null,
         _ => null,
     };
 
     /// <summary>
-    /// One click, several meanings: step onto a tile that is already there, uncover
-    /// one where there is nothing yet, or — held down — reveal without walking in, or
-    /// dig out a neighbour.
+    /// One click, several meanings: settle the tie the game is waiting on, step onto a
+    /// tile that is already there, uncover one where there is nothing yet, or — held
+    /// down — reveal without walking in, or dig out a neighbour.
     /// </summary>
     private void ClickOn(Cell cell, bool revealOnly, bool dig)
     {
+        if (_game.Pending is { } decision)
+        {
+            var option = decision.Options.ToList().FindIndex(candidate => candidate.Cell == cell);
+
+            if (option >= 0)
+            {
+                Apply(new Decide(option));
+                return;
+            }
+
+            Say($"{_game.Chooser(decision).Name} doit d'abord trancher.");
+            return;
+        }
+
         var from = _game.CurrentExplorer.Cell;
 
         if (dig)
@@ -100,7 +142,7 @@ public partial class AppRoot : Node3D
 
         if (from.DirectionTo(cell) is not { } direction)
         {
-            _hud.Say($"{cell} n'est pas voisine de {from}.");
+            Say($"{cell} n'est pas voisine de {from}.");
             return;
         }
 
@@ -113,26 +155,104 @@ public partial class AppRoot : Node3D
         Apply(revealOnly ? new Reveal(direction) : new Explore(direction));
     }
 
-    private void Apply(GameCommand command)
+    private void Apply(GameCommand? command)
     {
+        if (command is null)
+        {
+            Say("Rien à faire ici.");
+            return;
+        }
+
         var result = _game.Execute(command);
 
         if (!result.Accepted)
         {
-            _hud.Say(result.Rejection ?? "Impossible.");
+            Say(result.Rejection ?? "Impossible.");
             return;
         }
 
         Refresh();
-        _hud.Say(Describe(result.Events));
+        Say(Describe(result.Events));
+    }
+
+    private void Hover(Cell? cell)
+    {
+        if (cell == _hovered)
+        {
+            return;
+        }
+
+        _hovered = cell;
+        _highlights.Render(Hints(), _hovered);
     }
 
     private void Refresh()
     {
         _board.Render(_game.Board);
         _tokens.Render(_game);
+        _highlights.Render(Hints(), _hovered);
         _hud.Show(_game);
         FrameBoard();
+    }
+
+    /// <summary>
+    /// What a click would do, cell by cell. The engine is the one asked — this only
+    /// paints the answer, and every command is checked again on the way in.
+    /// </summary>
+    private Dictionary<Cell, HighlightView.Hint> Hints()
+    {
+        var hints = new Dictionary<Cell, HighlightView.Hint>();
+
+        if (_game.IsOver)
+        {
+            return hints;
+        }
+
+        // An arbitration takes the board over: only its own answers are worth pointing at.
+        if (_game.Pending is { } decision)
+        {
+            foreach (var option in decision.Options)
+            {
+                if (option.Cell is { } cell)
+                {
+                    hints[cell] = HighlightView.Hint.Choice;
+                }
+            }
+
+            return hints;
+        }
+
+        var from = _game.CurrentExplorer.Cell;
+
+        foreach (var direction in _game.Exits())
+        {
+            hints[from.Neighbour(direction)] = HighlightView.Hint.Unknown;
+        }
+
+        foreach (var direction in _game.Steps())
+        {
+            hints[from.Neighbour(direction)] = HighlightView.Hint.Step;
+        }
+
+        foreach (var cell in _game.DigTargets())
+        {
+            hints[cell] = HighlightView.Hint.Rubble;
+        }
+
+        return hints;
+    }
+
+    /// <summary>Keeps the last few lines of the story on screen.</summary>
+    private void Say(string line)
+    {
+        _log.Enqueue(line);
+
+        while (_log.Count > LogDepth)
+        {
+            _log.Dequeue();
+        }
+
+        _hud.Say(string.Join('\n', _log));
     }
 
     /// <summary>The events of a command, in a line, most interesting first.</summary>
@@ -144,8 +264,8 @@ public partial class AppRoot : Node3D
 
     private static string? Tell(GameEvent @event) => @event switch
     {
-        TileRevealed revealed => $"{revealed.Tile.Kind} révélée",
-        TrapSprung trap => $"{trap.Trap} déclenché !",
+        TileRevealed revealed => $"{Say(revealed.Tile.Kind)} révélée",
+        TrapSprung trap => $"{Say(trap.Trap)} déclenché !",
         HealthLost lost => $"−{lost.Amount} ♥",
         ExplorerWentDown => "à terre !",
         GuardianAppeared => "un Gardien s'éveille",
@@ -160,8 +280,37 @@ public partial class AppRoot : Node3D
         ExplorerKilled => "englouti par la lave",
         ExplorerEscaped escaped => escaped.WithArtefact ? "sorti avec l'Artefact !" : "sorti du temple",
         GameEnded ended => $"FIN DE PARTIE — {ended.Outcome}",
-        PerilRolled peril => $"Péril : {peril.Face}",
+        PerilRolled peril => $"Péril : {Say(peril.Face)}",
+        DecisionRequired required => $"à trancher : {required.Decision.Prompt}",
+        DecisionMade made => $"choix : {made.Chosen.Label}",
         _ => null,
+    };
+
+    private static string Say(PerilFace face) => face switch
+    {
+        PerilFace.Stumble => "faux pas",
+        PerilFace.Lava => "Lave",
+        PerilFace.Collapse => "Effondrement",
+        PerilFace.Trap => "Pièges",
+        PerilFace.WakeGuardian => "un Gardien s'éveille",
+        PerilFace.ActivateGuardians => "les Gardiens s'animent",
+        _ => face.ToString(),
+    };
+
+    private static string Say(TileKind kind) => kind switch
+    {
+        TileKind.Normal => "une galerie",
+        TileKind.Bridge => "un Pont",
+        TileKind.Key => "une Clé",
+        TileKind.Lava => "une coulée de Lave",
+        TileKind.SpikeTrap => "un piège à Pics",
+        TileKind.DartTrap => "un piège à Fléchettes",
+        TileKind.Ruins => "une Ruine",
+        TileKind.Guardian => "une case Gardien",
+        TileKind.Journal => "un Journal",
+        TileKind.Entrance => "l'Entrée",
+        TileKind.Sanctuary => "le Sanctuaire",
+        _ => kind.ToString(),
     };
 
     /// <summary>Turns a click into the tile it landed on, using the table's own plane.</summary>

@@ -3,32 +3,182 @@ using SubTerra.Core.Game;
 
 namespace SubTerra.Presentation;
 
-/// <summary>The state of play in words, until there is a proper interface.</summary>
+/// <summary>
+/// The expedition down the side of the screen, its actions along the bottom, and —
+/// when the rules hand a tie to a player — the question in the middle of it. The HUD
+/// asks for commands and never carries them out itself.
+/// </summary>
 public partial class Hud : CanvasLayer
 {
-    private Label _status = null!;
+    /// <summary>A button was pressed. The name is the one the keyboard uses too.</summary>
+    [Signal]
+    public delegate void ActionRequestedEventHandler(string action);
+
+    /// <summary>An arbitration was settled: which option was taken.</summary>
+    [Signal]
+    public delegate void OptionChosenEventHandler(int option);
+
+    /// <summary>The actions that need no target beyond the explorer's own tile.</summary>
+    private static readonly (string Action, string Label, string Key)[] Buttons =
+    [
+        ("attack", "Attaquer", "A"),
+        ("heal", "Soigner", "H"),
+        ("pickup", "Ramasser", "P"),
+        ("drop", "Poser", "D"),
+        ("overexert", "Se dépasser", "O"),
+        ("endturn", "Finir le tour", "Espace"),
+    ];
+
+    private const string MouseLegend =
+        "Clic : avancer ou explorer   ·   Maj+clic : révéler sans entrer   ·   Ctrl+clic : creuser";
+
+    private Label _header = null!;
+    private VBoxContainer _party = null!;
     private Label _log = null!;
+    private Label _hint = null!;
+    private HBoxContainer _actions = null!;
+    private PanelContainer _decision = null!;
+    private Label _prompt = null!;
+    private VBoxContainer _options = null!;
 
     public override void _Ready()
     {
-        _status = GetNode<Label>("%Status");
+        _header = GetNode<Label>("%Header");
+        _party = GetNode<VBoxContainer>("%Party");
         _log = GetNode<Label>("%Log");
+        _hint = GetNode<Label>("%Hint");
+        _actions = GetNode<HBoxContainer>("%Actions");
+        _decision = GetNode<PanelContainer>("%Decision");
+        _prompt = GetNode<Label>("%Prompt");
+        _options = GetNode<VBoxContainer>("%Options");
+
+        _hint.Text = MouseLegend;
+
+        foreach (var (action, label, key) in Buttons)
+        {
+            var name = action;
+            var button = Press($"{label}   {key}");
+            button.Pressed += () => EmitSignal(SignalName.ActionRequested, name);
+            _actions.AddChild(button);
+        }
     }
 
     public void Show(GameState game)
     {
-        var explorer = game.CurrentExplorer;
-        var carried = explorer.Carried is { } item ? $" — porte : {item}" : string.Empty;
-        var medallion = game.Leader.Id == explorer.Id ? " ★" : string.Empty;
+        _header.Text = string.Join("   ·   ",
+            $"Manche {game.Round + 1}",
+            $"Chef ★ {game.Leader.Name}",
+            $"Sac {game.Bag.Count}",
+            $"Éruption {game.EruptionCountdown}",
+            $"Clés {game.KeysDeposited}/{GameState.KeysToUnlock}");
 
-        _status.Text = string.Join('\n',
-            $"Manche {game.Round + 1}   Chef : {game.Leader.Name}",
-            $"À {explorer.Name}{medallion} — {explorer.Health}/{explorer.MaxHealth} ♥   {game.ActionPoints} action(s){carried}",
-            $"Sac : {game.Bag.Count}   Éruption : {game.EruptionCountdown}   Clés déposées : {game.KeysDeposited}/{GameState.KeysToUnlock}",
-            "Clic : avancer / explorer   ·   Maj+clic : révéler sans entrer   ·   Ctrl+clic : creuser",
-            "A attaquer   H soigner   P ramasser   D poser   O se dépasser   Espace finir le tour");
+        ShowParty(game);
+        ShowDecision(game);
+
+        // Nothing may be done while the game is waiting on an answer, or once it is over.
+        var frozen = game.IsOver || game.Pending is not null;
+
+        foreach (var button in _actions.GetChildren().OfType<Button>())
+        {
+            button.Disabled = frozen;
+        }
+
+        _hint.Text = game.IsOver ? "La partie est terminée." : MouseLegend;
     }
 
     /// <summary>The last thing that happened, or the reason nothing did.</summary>
     public void Say(string message) => _log.Text = message;
+
+    private void ShowParty(GameState game)
+    {
+        foreach (var child in _party.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        foreach (var explorer in game.Explorers)
+        {
+            var current = explorer.Id == game.CurrentExplorer.Id && !game.IsOver;
+
+            var label = new Label
+            {
+                Text = string.Join("   ", Badge(game, explorer), Hearts(explorer), Standing(game, explorer)),
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+            };
+
+            // The line and the meeple are the same colour, so the roster reads as the board.
+            label.AddThemeColorOverride("font_color", current ? Palette.For(explorer.Id) : Palette.Faded);
+            label.AddThemeColorOverride("font_outline_color", Colors.Black);
+            label.AddThemeConstantOverride("outline_size", 5);
+            label.AddThemeFontSizeOverride("font_size", 16);
+
+            _party.AddChild(label);
+        }
+    }
+
+    private void ShowDecision(GameState game)
+    {
+        foreach (var child in _options.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        if (game.Pending is not { } decision)
+        {
+            _decision.Visible = false;
+            return;
+        }
+
+        _decision.Visible = true;
+        _prompt.Text = $"{game.Chooser(decision).Name} tranche\n{decision.Prompt}";
+
+        foreach (var (option, index) in decision.Options.Select((option, index) => (option, index)))
+        {
+            var taken = index;
+            var button = Press(option.Label);
+            button.Pressed += () => EmitSignal(SignalName.OptionChosen, taken);
+            _options.AddChild(button);
+        }
+    }
+
+    /// <summary>
+    /// A button that never takes the keyboard focus — otherwise Space would press the
+    /// last thing clicked instead of ending the turn.
+    /// </summary>
+    private static Button Press(string text) => new()
+    {
+        Text = text,
+        FocusMode = Control.FocusModeEnum.None,
+    };
+
+    private static string Badge(GameState game, Explorer explorer) => string.Concat(
+        explorer.Id == game.CurrentExplorer.Id && !game.IsOver ? "▶" : " ",
+        explorer.Id == game.Leader.Id ? "★" : " ",
+        " ",
+        explorer.Name);
+
+    private static string Hearts(Explorer explorer) =>
+        new string('♥', explorer.Health) + new string('·', explorer.MaxHealth - explorer.Health);
+
+    private static string Standing(GameState game, Explorer explorer)
+    {
+        var carried = explorer.Carried is { } item ? $"   porte {Say(item)}" : string.Empty;
+
+        return explorer switch
+        {
+            { HasEscaped: true } => "sorti du temple" + carried,
+            { IsDead: true } => "englouti",
+            { IsDown: true } => "à terre" + carried,
+            _ when explorer.Id == game.CurrentExplorer.Id && !game.IsOver =>
+                $"{game.ActionPoints} action(s)" + carried,
+            _ => carried.TrimStart(),
+        };
+    }
+
+    private static string Say(ItemKind item) => item switch
+    {
+        ItemKind.Key => "une Clé",
+        ItemKind.Artefact => "l'Artefact",
+        _ => item.ToString(),
+    };
 }

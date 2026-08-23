@@ -58,7 +58,7 @@ public class PerilTests
     {
         var game = Game(TempleSetup.CreateBoard(), seed: 3);
 
-        var result = game.Execute(new EndTurn());
+        var result = game.Play(new EndTurn());
 
         Assert.Single(result.Events.OfType<PerilRolled>());
     }
@@ -69,12 +69,12 @@ public class PerilTests
         var seed = SeedFor(PerilFace.Stumble);
 
         var careful = Game(TempleSetup.CreateBoard(), seed);
-        careful.Execute(new EndTurn());
+        careful.Play(new EndTurn());
         Assert.Equal(7, careful.Explorers[0].Health);
 
         var reckless = Game(TempleSetup.CreateBoard(), seed);
-        reckless.Execute(new Overexert());
-        reckless.Execute(new EndTurn());
+        reckless.Play(new Overexert());
+        reckless.Play(new EndTurn());
 
         // One heart for the extra action, one more for stumbling on it.
         Assert.Equal(5, reckless.Explorers[0].Health);
@@ -87,8 +87,8 @@ public class PerilTests
         var game = Game(BoardWith((lava, Tile(TileKind.Lava))), SeedFor(PerilFace.Lava),
             ("Guide", 7), ("Prêtre", 5));
 
-        game.Execute(new Move(Direction.South));
-        game.Execute(new EndTurn());
+        game.Play(new Move(Direction.South));
+        game.Play(new EndTurn());
 
         Assert.Equal(7 - GameState.LavaDamage, game.Explorers[0].Health);
         Assert.Equal(5, game.Explorers[1].Health);
@@ -108,7 +108,7 @@ public class PerilTests
         var ruins = new Cell(Start.Column, 1);
         var game = Game(BoardWith((ruins, Tile(TileKind.Ruins, doomedNumber))), seed, ("Guide", 7));
 
-        var result = game.Execute(new EndTurn());
+        var result = game.Play(new EndTurn());
 
         Assert.Contains(new RuinsCollapsed(ruins), result.Events);
         Assert.Contains(ruins, game.Rubble);
@@ -129,10 +129,10 @@ public class PerilTests
         var game = Game(board, seed);
 
         // Reveal-time rubble is not simulated here, so bury it by hand via a collapse.
-        game.Execute(new EndTurn());
+        game.Play(new EndTurn());
         Assert.Contains(ruins, game.Rubble);
 
-        var again = game.Execute(new EndTurn());
+        var again = game.Play(new EndTurn());
         Assert.DoesNotContain(again.Events, e => e is RuinsCollapsed);
     }
 
@@ -143,7 +143,7 @@ public class PerilTests
         var game = Game(BoardWith((darts, Tile(TileKind.DartTrap))), SeedFor(PerilFace.Trap),
             ("Guide", 7), ("Prêtre", 5));
 
-        var result = game.Execute(new EndTurn());
+        var result = game.Play(new EndTurn());
 
         // The active explorer is at the entrance, connected to the dart tile.
         Assert.Contains(result.Events, e => e is TrapSprung { Trap: TileKind.DartTrap });
@@ -160,7 +160,7 @@ public class PerilTests
         var game = Game(BoardWith((pocket, Tile(TileKind.Guardian))), SeedFor(PerilFace.WakeGuardian),
             ("Guide", 7), ("Prêtre", 5));
 
-        var result = game.Execute(new EndTurn());
+        var result = game.Play(new EndTurn());
 
         Assert.Contains(new GuardianAppeared(pocket), result.Events);
         Assert.Equal([pocket], game.Guardians);
@@ -175,7 +175,7 @@ public class PerilTests
         var game = Game(BoardWith((next, Tile(TileKind.Guardian))), SeedFor(PerilFace.WakeGuardian),
             ("Guide", 7), ("Prêtre", 5));
 
-        game.Execute(new EndTurn());
+        game.Play(new EndTurn());
 
         Assert.Equal([next], game.Guardians);
     }
@@ -195,8 +195,8 @@ public class PerilTests
 
         while (!game.Bag.IsEmpty)
         {
-            game.Execute(new Explore(Direction.South, Rotation: 0));
-            game.Execute(new EndTurn());
+            game.Play(new Explore(Direction.South, Rotation: 0));
+            game.Play(new EndTurn());
         }
 
         Assert.True(game.Bag.IsEmpty);

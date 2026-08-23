@@ -55,9 +55,23 @@ et les conditions de fin.
 
 Ne sont pas joués : les dix Explorateurs et leurs capacités, la tuile Journal.
 
-Le **Chef d'Expédition** existe : le médaillon passe au joueur suivant à chaque
-fin de manche, et la manche s'ouvre sur son porteur. Il ne tranche encore rien —
-les arbitrages restent résolus par l'ordre du plateau.
+Le **Chef d'Expédition** est désigné au début et garde le médaillon toute la
+partie ; chaque manche s'ouvre sur lui. C'est lui qui tranche, et il tranche pour
+de bon : les ambiguïtés du livret sont devenues des questions posées.
+
+Quand une conséquence rencontre une égalité — deux Explorateurs sur la tuile d'un
+Gardien, deux chemins aussi courts, deux places pour le Sanctuaire — le moteur
+**suspend le script en cours** et publie un `DecisionRequired`. Plus rien n'est
+accepté qu'un `Decide(option)` ; la réponse relance les conséquences exactement où
+elles s'étaient arrêtées. Une option unique n'est pas une question et se règle
+seule. Le réveil d'un Gardien fait exception au Chef : le livret le confie au
+joueur actif, et le moteur suit.
+
+Techniquement, les conséquences d'une commande sont un `IEnumerable<GameEvent>`
+paresseux tenu par un `IEnumerator` que `Pump()` déroule. `Ask()` publie la
+question et rend la main ; `Decide` remplit la réponse et relance la pompe. Comme
+l'arbitrage est une commande, une partie se rejoue toujours à partir de sa graine
+et de sa liste de commandes.
 
 Une **Révélation** ne fixe plus l'orientation avant la pioche. On choisit une
 issue, la tuile sort du sac, et l'orientation vient après : une préférence
@@ -67,11 +81,9 @@ gestes, et c'est l'interface qui a révélé l'erreur.
 
 Deux écarts assumés, notés ici pour ne pas les oublier :
 
-- Le livret confie de nombreux arbitrages au **Chef d'Expédition** — quelle
-  cible un Gardien frappe, où va le Sanctuaire quand plusieurs places
-  conviennent. Le moteur tranche par l'ordre du plateau, ce qui est
-  déterministe mais n'est pas la règle. Ces choix doivent devenir des commandes
-  adressées à un joueur désigné.
+- L'**ordre d'activation** des Gardiens reste celui de leur apparition. Le livret
+  laisse au Chef le soin de trancher quand il compte ; ce sera une question de
+  plus le jour où ça se verra.
 - Le nombre d'exemplaires des tuiles et leurs tracés viennent de
   `docs/tuiles.md`, dicté, et non du livret.
 
@@ -86,17 +98,28 @@ Conséquence sur le moteur : la validation des commandes doit être exhaustive
 côté hôte, jamais déléguée à l'UI. L'UI grise les actions impossibles pour le
 confort ; l'hôte les refuse pour la correction.
 
-Le Chef d'Expédition tranche les nombreux choix ambigus des règles (cible d'une
-attaque de Gardien, direction d'un déplacement, emplacement du Sanctuaire). Ces
-choix deviennent des commandes explicites adressées à un joueur désigné, pas des
-résolutions automatiques : c'est un point de conception à ne pas court-circuiter.
+Les arbitrages sont déjà des commandes (`Decide`) adressées à un joueur nommé
+(`PendingDecision.Chooser`), et non des résolutions automatiques : côté réseau,
+l'hôte n'aura qu'à n'accepter le `Decide` que de ce joueur-là.
 
 ## L'écran
 
 `AppRoot` détient l'unique `GameState` et redessine tout après chaque commande :
 `BoardView` pour les tuiles, `TokenView` pour les meeples, les Gardiens et les
-objets, `Hud` pour l'état en toutes lettres. Aucune animation — les événements
-sont affichés en texte, pas encore rejoués.
+objets, `HighlightView` pour ce qu'un clic ferait, `Hud` pour l'expédition, les
+boutons d'action et les arbitrages. Aucune animation — les événements sont
+affichés en texte, pas encore rejoués.
+
+Le survol allume les cases : vert on avance, ambre on pose une tuile, gris on
+creuse, rouge c'est une réponse attendue. `HighlightView` ne connaît aucune règle
+— il demande au moteur (`Steps()`, `Exits()`, `DigTargets()`) et peint la réponse.
+Ces requêtes sont un confort, jamais une autorité : toute commande est revalidée
+à l'entrée.
+
+Le HUD affiche l'expédition entière — cœurs, actions, objet porté, médaillon —
+chaque ligne de la couleur de son meeple. Quand une question tombe, le panneau
+d'arbitrage s'ouvre, les actions se grisent, et les cases concernées s'allument :
+on répond au bouton ou directement sur le plateau.
 
 Un clic se traduit en commande selon ce qu'il désigne : une tuile posée et
 voisine, on avance ; du vide au-delà d'une issue, on explore. Maj+clic révèle

@@ -39,7 +39,7 @@ public class GameStateTests
     {
         var game = Game();
 
-        var result = game.Execute(new Move(Direction.West));
+        var result = game.Play(new Move(Direction.West));
 
         Assert.True(result.Accepted);
         Assert.Equal(Start.Neighbour(Direction.West), game.CurrentExplorer.Cell);
@@ -53,7 +53,7 @@ public class GameStateTests
         var game = Game();
 
         // Nothing has been revealed south of the entrance yet.
-        var result = game.Execute(new Move(Direction.South));
+        var result = game.Play(new Move(Direction.South));
 
         Assert.False(result.Accepted);
         Assert.Equal(Start, game.CurrentExplorer.Cell);
@@ -64,11 +64,11 @@ public class GameStateTests
     public void AnExplorerCannotActWithoutActionPoints()
     {
         var game = Game();
-        game.Execute(new Move(Direction.West));
-        game.Execute(new Move(Direction.East));
+        game.Play(new Move(Direction.West));
+        game.Play(new Move(Direction.East));
 
         Assert.Equal(0, game.ActionPoints);
-        Assert.False(game.Execute(new Move(Direction.West)).Accepted);
+        Assert.False(game.Play(new Move(Direction.West)).Accepted);
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class GameStateTests
     {
         var game = GameWithBag(Tile(TileKind.Normal, TileShape.Junction));
 
-        var result = game.Execute(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
 
         Assert.True(result.Accepted);
         Assert.True(game.Board.IsOccupied(Start.Neighbour(Direction.South)));
@@ -90,7 +90,7 @@ public class GameStateTests
         var game = GameWithBag(Tile(TileKind.Normal, TileShape.DeadEnd));
 
         // Turned away from the entrance, its single opening faces south.
-        var result = game.Execute(new Reveal(Direction.South, Rotation: 2));
+        var result = game.Play(new Reveal(Direction.South, Rotation: 2));
 
         Assert.False(result.Accepted);
         Assert.Equal(1, game.Bag.Count);
@@ -104,7 +104,7 @@ public class GameStateTests
         var target = Start.Neighbour(Direction.South);
 
         // Its one opening faces north, back towards the entrance it is revealed from.
-        var result = game.Execute(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
 
         Assert.True(result.Accepted);
         Assert.Contains(new ItemAppeared(target, ItemKind.Key), result.Events);
@@ -117,7 +117,7 @@ public class GameStateTests
         var game = GameWithBag(Tile(TileKind.Guardian, TileShape.Corner));
         var target = Start.Neighbour(Direction.South);
 
-        var result = game.Execute(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
 
         Assert.True(result.Accepted);
         Assert.Contains(new GuardianAppeared(target), result.Events);
@@ -129,10 +129,10 @@ public class GameStateTests
     {
         var game = GameWithBag(Tile(TileKind.Normal, TileShape.Junction));
 
-        var result = game.Execute(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
 
         Assert.Contains(result.Events, e => e is BagEmptied);
-        Assert.False(game.Execute(new Reveal(Direction.South, Rotation: 0)).Accepted);
+        Assert.False(game.Play(new Reveal(Direction.South, Rotation: 0)).Accepted);
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class GameStateTests
     {
         var game = Game();
 
-        var result = game.Execute(new Overexert());
+        var result = game.Play(new Overexert());
 
         Assert.True(result.Accepted);
         Assert.Equal(3, game.ActionPoints);
@@ -152,20 +152,20 @@ public class GameStateTests
     public void AnExplorerOverexertsOnlyOncePerTurn()
     {
         var game = Game();
-        game.Execute(new Overexert());
+        game.Play(new Overexert());
 
-        Assert.False(game.Execute(new Overexert()).Accepted);
+        Assert.False(game.Play(new Overexert()).Accepted);
     }
 
     [Fact]
     public void OverexertingIsAllowedAgainNextTurn()
     {
         var game = Game(("Prêtre", 5), ("Guide", 3));
-        game.Execute(new Overexert());
-        game.Execute(new EndTurn());
+        game.Play(new Overexert());
+        game.Play(new EndTurn());
         PassTo(game, "Prêtre");
 
-        Assert.True(game.Execute(new Overexert()).Accepted);
+        Assert.True(game.Play(new Overexert()).Accepted);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class GameStateTests
         // A companion still standing, so this tests the turn ending and not the game.
         var game = Game(("Fragile", 1), ("Prêtre", 5));
 
-        var result = game.Execute(new Overexert());
+        var result = game.Play(new Overexert());
 
         Assert.True(game.CurrentExplorer.IsDown);
         Assert.Equal(0, game.ActionPoints);
@@ -185,15 +185,15 @@ public class GameStateTests
     public void ADownedExplorerGetsOneActionAndCanOnlyCrawl()
     {
         var game = Game(("Fragile", 1), ("Prêtre", 5));
-        game.Execute(new Overexert());
-        game.Execute(new EndTurn());
+        game.Play(new Overexert());
+        game.Play(new EndTurn());
         PassTo(game, "Fragile");
 
         Assert.True(game.CurrentExplorer.IsDown);
         Assert.Equal(1, game.ActionPoints);
-        Assert.False(game.Execute(new Overexert()).Accepted);
-        Assert.False(game.Execute(new Reveal(Direction.South, 0)).Accepted);
-        Assert.True(game.Execute(new Move(Direction.West)).Accepted);
+        Assert.False(game.Play(new Overexert()).Accepted);
+        Assert.False(game.Play(new Reveal(Direction.South, 0)).Accepted);
+        Assert.True(game.Play(new Move(Direction.West)).Accepted);
     }
 
     [Fact]
@@ -202,27 +202,32 @@ public class GameStateTests
         var game = Game(("Guide", 3), ("Prêtre", 5));
         Assert.Equal("Guide", game.Leader.Name);
 
-        var first = game.Execute(new EndTurn());
+        var first = game.Play(new EndTurn());
         Assert.Equal("Prêtre", game.CurrentExplorer.Name);
         Assert.DoesNotContain(first.Events, e => e is RoundEnded);
 
-        var second = game.Execute(new EndTurn());
+        var second = game.Play(new EndTurn());
         Assert.Contains(new RoundEnded(1), second.Events);
         Assert.Equal(1, game.Round);
     }
 
     [Fact]
-    public void TheMedallionPassesOnAndTheNextRoundOpensOnItsHolder()
+    public void TheMedallionStaysWhereItWasDealtAndEveryRoundOpensOnIt()
     {
         var game = Game(("Guide", 3), ("Prêtre", 5), ("Sapeur", 5));
 
-        foreach (var _ in game.Explorers)
+        for (var round = 0; round < 3; round++)
         {
-            game.Execute(new EndTurn());
+            foreach (var _ in game.Explorers)
+            {
+                game.Play(new EndTurn());
+            }
+
+            Assert.Equal("Guide", game.Leader.Name);
+            Assert.Equal("Guide", game.CurrentExplorer.Name);
         }
 
-        Assert.Equal("Prêtre", game.Leader.Name);
-        Assert.Equal("Prêtre", game.CurrentExplorer.Name);
+        Assert.Equal(3, game.Round);
     }
 
     /// <summary>Hands the turn on until the named explorer is playing again.</summary>
@@ -230,7 +235,7 @@ public class GameStateTests
     {
         for (var turn = 0; turn < 20 && game.CurrentExplorer.Name != name && !game.IsOver; turn++)
         {
-            game.Execute(new EndTurn());
+            game.Play(new EndTurn());
         }
 
         Assert.Equal(name, game.CurrentExplorer.Name);
@@ -242,8 +247,8 @@ public class GameStateTests
         var game = GameWithBag(Tile(TileKind.Bridge, TileShape.Corridor));
         var bridge = Start.Neighbour(Direction.South);
 
-        game.Execute(new Reveal(Direction.South, Rotation: 0));
-        Assert.True(game.Execute(new Move(Direction.South)).Accepted);
+        game.Play(new Reveal(Direction.South, Rotation: 0));
+        Assert.True(game.Play(new Move(Direction.South)).Accepted);
         Assert.Equal(bridge, game.CurrentExplorer.Cell);
 
         // A second explorer standing at the entrance may not follow them on.
@@ -252,9 +257,9 @@ public class GameStateTests
             game.Board,
             game.Bag,
             new Rng(1));
-        crowd.Execute(new EndTurn());
+        crowd.Play(new EndTurn());
 
-        var blocked = crowd.Execute(new Move(Direction.South));
+        var blocked = crowd.Play(new Move(Direction.South));
 
         Assert.False(blocked.Accepted);
         Assert.Contains("Pont", blocked.Rejection);

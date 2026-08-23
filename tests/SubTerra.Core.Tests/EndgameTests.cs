@@ -28,7 +28,7 @@ public class EndgameTests
     {
         var game = Game([Tile(TileKind.Normal)]);
 
-        var result = game.Execute(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
 
         Assert.Contains(result.Events, e => e is BagEmptied);
         var found = Assert.Single(result.Events.OfType<SanctuaryFound>());
@@ -45,11 +45,11 @@ public class EndgameTests
     {
         var game = Game([Tile(TileKind.Normal), Tile(TileKind.Normal)], roster: [("A", 20), ("B", 20)]);
 
-        game.Execute(new Explore(Direction.South, Rotation: 0));
-        game.Execute(new Reveal(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Reveal(Direction.South, Rotation: 0));
         var hall = game.SanctuaryHall;
 
-        game.Execute(new EndTurn());
+        game.Play(new EndTurn());
 
         Assert.Equal(hall, game.SanctuaryHall);
         Assert.NotNull(hall);
@@ -58,7 +58,7 @@ public class EndgameTests
     /// <summary>Runs a command and says which one failed if it does.</summary>
     private static void Do(GameState game, GameCommand command)
     {
-        var result = game.Execute(command);
+        var result = game.Play(command);
         Assert.True(result.Accepted, $"{command} refusé : {result.Rejection}");
     }
 
@@ -128,7 +128,7 @@ public class EndgameTests
         Do(game, new Move(Direction.South));
         Do(game, new EndTurn());
 
-        var unlocked = game.Execute(new DropItem());
+        var unlocked = game.Play(new DropItem());
         Assert.True(unlocked.Accepted);
         Assert.Equal(GameState.KeysToUnlock, game.KeysDeposited);
         Assert.Contains(new ArtefactRevealed(vault), unlocked.Events);
@@ -138,7 +138,7 @@ public class EndgameTests
         // Down into the vault for it.
         Do(game, new Move(Direction.South));
         Do(game, new EndTurn());
-        var lifted = game.Execute(new PickUpItem(ItemKind.Artefact));
+        var lifted = game.Play(new PickUpItem(ItemKind.Artefact));
         Assert.True(lifted.Accepted);
         Assert.Contains(new CurseFell(), lifted.Events);
         Assert.True(game.IsCursed);
@@ -153,7 +153,7 @@ public class EndgameTests
         Do(game, new EndTurn());
         Do(game, new Move(Direction.North));
 
-        var escape = game.Execute(new Move(Direction.North));
+        var escape = game.Play(new Move(Direction.North));
 
         Assert.Contains(escape.Events, e => e is ExplorerEscaped { WithArtefact: true });
         Assert.Contains(new GameEnded(Outcome.Legendary), escape.Events);
@@ -165,7 +165,7 @@ public class EndgameTests
     {
         var game = Game([Tile(TileKind.Normal)]);
 
-        var result = game.Execute(new Move(Direction.North));
+        var result = game.Play(new Move(Direction.North));
 
         Assert.Contains(result.Events, e => e is ExplorerEscaped { WithArtefact: false });
         Assert.Contains(new GameEnded(Outcome.ForgottenForever), result.Events);
@@ -177,17 +177,17 @@ public class EndgameTests
     {
         var game = Game([Tile(TileKind.Normal)], roster: [("Sortie", 20), ("Restée", 20)]);
 
-        game.Execute(new Move(Direction.North));
+        game.Play(new Move(Direction.North));
         Assert.True(game.Explorers[0].HasEscaped);
         Assert.False(game.IsOver);
 
         for (var turn = 0; turn < 10 && game.CurrentExplorer.Id != new ExplorerId(0); turn++)
         {
-            game.Execute(new EndTurn());
+            game.Play(new EndTurn());
         }
 
         Assert.Equal(new ExplorerId(0), game.CurrentExplorer.Id);
         Assert.Equal(0, game.ActionPoints);
-        Assert.False(game.Execute(new Move(Direction.South)).Accepted);
+        Assert.False(game.Play(new Move(Direction.South)).Accepted);
     }
 }
