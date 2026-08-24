@@ -14,9 +14,7 @@ public class CommandCodecTests
         new Move(Direction.South),
         new Run([Direction.North, Direction.East, Direction.East]),
         new Reveal(Direction.West),
-        new Reveal(Direction.West, Rotation: 2),
         new Explore(Direction.East),
-        new Explore(Direction.East, Rotation: 0),
         new Heal(new ExplorerId(3)),
         new PickUpItem(ItemKind.Artefact),
         new DropItem(),
@@ -42,14 +40,6 @@ public class CommandCodecTests
         Assert.Equal(line, CommandCodec.Encode(back));
     }
 
-    [Fact]
-    public void AnAbsentRotationStaysAbsent()
-    {
-        var reveal = Assert.IsType<Reveal>(CommandCodec.Decode("reveal:North:"));
-
-        Assert.Null(reveal.Rotation);
-    }
-
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -57,6 +47,9 @@ public class CommandCodecTests
     [InlineData("move")]
     [InlineData("move:Upwards")]
     [InlineData("move:South:2")]
+    // A reveal names an exit and nothing else: how the tile is turned is settled
+    // afterwards, by a Decide, once everyone has seen what came out of the bag.
+    [InlineData("reveal:North:0")]
     [InlineData("run:")]
     [InlineData("dig:3")]
     [InlineData("dig:trois,4")]

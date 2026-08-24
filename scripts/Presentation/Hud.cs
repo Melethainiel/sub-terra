@@ -18,6 +18,10 @@ public partial class Hud : CanvasLayer
     [Signal]
     public delegate void OptionChosenEventHandler(int option);
 
+    /// <summary>An option is being weighed up: the board shows what it would look like.</summary>
+    [Signal]
+    public delegate void OptionPreviewedEventHandler(int option);
+
     /// <summary>The actions that need no target beyond the explorer's own tile.</summary>
     private static readonly (string Action, string Label, string Key)[] Buttons =
     [
@@ -35,6 +39,14 @@ public partial class Hud : CanvasLayer
     private const string FpsLegend =
         "Souris : regarder   ·   Clic : agir sur ce qui est devant vous   ·   Maj/Ctrl+clic : révéler/creuser   ·   Échap : vue du dessus";
 
+    /// <summary>What to do with a tile that is out of the bag but not yet laid.</summary>
+    private const string TurningLegend =
+        "Molette ou R : tourner la tuile   ·   Clic sur la case : la poser   ·   V : vue FPS ↔ vue du dessus";
+
+    /// <summary>What to do with a Guardian that is stirring but not yet awake.</summary>
+    private const string StirringLegend =
+        "Molette ou R : changer de case Gardien   ·   Clic sur la case : l'y réveiller";
+
     private Label _header = null!;
     private Label _notice = null!;
     private VBoxContainer _party = null!;
@@ -45,6 +57,10 @@ public partial class Hud : CanvasLayer
     private Label _prompt = null!;
     private VBoxContainer _options = null!;
     private Control _crosshair = null!;
+
+    /// <summary>The options as written, so the one laid out on the board can be
+    /// badged without the badge ending up in the next label.</summary>
+    private readonly List<string> _labels = [];
 
     /// <summary>Whether this machine is currently looking through an Explorer's
     /// eyes — changes which legend the hint line shows.</summary>
@@ -102,9 +118,13 @@ public partial class Hud : CanvasLayer
             button.Disabled = frozen;
         }
 
-        _hint.Text = game.IsOver
-            ? "La partie est terminée.   ·   V : vue FPS ↔ vue du dessus"
-            : _aiming ? FpsLegend : MouseLegend;
+        _hint.Text = (game.IsOver, game.Pending, mine) switch
+        {
+            (true, _, _) => "La partie est terminée.   ·   V : vue FPS ↔ vue du dessus",
+            (_, { Kind: DecisionKind.TileOrientation }, true) => TurningLegend,
+            (_, { Kind: DecisionKind.GuardianAwakening }, true) => StirringLegend,
+            _ => _aiming ? FpsLegend : MouseLegend,
+        };
     }
 
     /// <summary>The last thing that happened, or the reason nothing did.</summary>
@@ -159,7 +179,21 @@ public partial class Hud : CanvasLayer
         }
 
         _decision.Visible = true;
-        _prompt.Text = $"{game.Chooser(decision).Name} tranche\n{decision.Prompt}";
+
+        // What the board can show is weighed up by looking at the temple, not at a
+        // list: say so, or the buttons read as several names for the same thing.
+        var aside = decision.Kind switch
+        {
+            DecisionKind.TileOrientation =>
+                "\nElle est posée à l'essai sur le plateau : molette ou R pour la tourner.",
+            DecisionKind.GuardianAwakening =>
+                "\nIl se dresse à l'essai sur le plateau : molette ou R pour changer de case.",
+            _ => string.Empty,
+        };
+
+        _prompt.Text = $"{game.Chooser(decision).Name} tranche\n{decision.Prompt}{aside}";
+
+        _labels.Clear();
 
         foreach (var (option, index) in decision.Options.Select((option, index) => (option, index)))
         {
@@ -167,7 +201,27 @@ public partial class Hud : CanvasLayer
             var button = Press(option.Label);
             button.Disabled = !mine;
             button.Pressed += () => EmitSignal(SignalName.OptionChosen, taken);
+
+            // Pointing at an option lays it out on the board; it stays laid out when
+            // the pointer leaves, so the answer can be given on the temple itself.
+            button.MouseEntered += () => EmitSignal(SignalName.OptionPreviewed, taken);
             _options.AddChild(button);
+            _labels.Add(option.Label);
+        }
+    }
+
+    /// <summary>
+    /// Badges the answer currently laid out on the board, so the list and the temple
+    /// never disagree about which one a click would take.
+    /// </summary>
+    public void Highlight(int option)
+    {
+        foreach (var (button, index) in _options.GetChildren().OfType<Button>().Select((b, i) => (b, i)))
+        {
+            if (index < _labels.Count)
+            {
+                button.Text = $"{(index == option ? "▶" : " ")}   {_labels[index]}";
+            }
         }
     }
 

@@ -17,8 +17,8 @@ public static class CommandCodec
     {
         Move move => $"move:{move.Direction}",
         Run run => $"run:{string.Join(',', run.Steps)}",
-        Reveal reveal => $"reveal:{reveal.Direction}:{reveal.Rotation}",
-        Explore explore => $"explore:{explore.Direction}:{explore.Rotation}",
+        Reveal reveal => $"reveal:{reveal.Direction}",
+        Explore explore => $"explore:{explore.Direction}",
         Heal heal => $"heal:{heal.Target.Value}",
         PickUpItem pickUp => $"pickup:{pickUp.Item}",
         DropItem => "drop",
@@ -47,10 +47,8 @@ public static class CommandCodec
         {
             ["move", var direction] when Way(direction) is { } way => new Move(way),
             ["run", var steps] when Path(steps) is { } path => new Run(path),
-            ["reveal", var direction, var turn] when Way(direction) is { } way && Turn(turn, out var rotation) =>
-                new Reveal(way, rotation),
-            ["explore", var direction, var turn] when Way(direction) is { } way && Turn(turn, out var rotation) =>
-                new Explore(way, rotation),
+            ["reveal", var direction] when Way(direction) is { } way => new Reveal(way),
+            ["explore", var direction] when Way(direction) is { } way => new Explore(way),
             ["heal", var target] when Number(target) is { } value => new Heal(new ExplorerId(value)),
             ["pickup", var item] when Enum.TryParse<ItemKind>(item, out var kind) => new PickUpItem(kind),
             ["drop"] => new DropItem(),
@@ -81,25 +79,6 @@ public static class CommandCodec
         }
 
         return steps.Count > 0 ? steps : null;
-    }
-
-    /// <summary>An empty field means "any orientation that joins up".</summary>
-    private static bool Turn(string text, out int? rotation)
-    {
-        rotation = null;
-
-        if (text.Length == 0)
-        {
-            return true;
-        }
-
-        if (Number(text) is not { } value)
-        {
-            return false;
-        }
-
-        rotation = value;
-        return true;
     }
 
     private static Cell? Where(string text)

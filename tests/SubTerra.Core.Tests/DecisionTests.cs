@@ -41,7 +41,7 @@ public class DecisionTests
     private static GameState AboutToStrike()
     {
         var (game, _) = Crowded();
-        game.Execute(new Reveal(Direction.South, Rotation: 0));
+        game.Execute(new Reveal(Direction.South));
         game.Execute(new EndTurn());
         game.Execute(new EndTurn());
 
@@ -128,7 +128,7 @@ public class DecisionTests
             new TileBag([new TileDefinition("Guardian-test", TileKind.Guardian, TileShape.Crossroads)]),
             new Rng(1));
 
-        game.Execute(new Reveal(Direction.South, Rotation: 0));
+        game.Execute(new Reveal(Direction.South));
         var round = game.Execute(new EndTurn());
 
         Assert.Null(game.Pending);

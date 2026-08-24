@@ -28,7 +28,7 @@ public class EndgameTests
     {
         var game = Game([Tile(TileKind.Normal)]);
 
-        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South));
 
         Assert.Contains(result.Events, e => e is BagEmptied);
         var found = Assert.Single(result.Events.OfType<SanctuaryFound>());
@@ -45,8 +45,8 @@ public class EndgameTests
     {
         var game = Game([Tile(TileKind.Normal), Tile(TileKind.Normal)], roster: [("A", 20), ("B", 20)]);
 
-        game.Play(new Explore(Direction.South, Rotation: 0));
-        game.Play(new Reveal(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South));
+        game.Play(new Reveal(Direction.South));
         var hall = game.SanctuaryHall;
 
         game.Play(new EndTurn());
@@ -80,11 +80,11 @@ public class EndgameTests
         var east = new Cell(Start.Column + 1, 1);
 
         // Open a row of three key pockets across the mouth of the temple.
-        Do(game, new Explore(Direction.South, Rotation: 0));
-        Do(game, new Reveal(Direction.East, Rotation: 0));
+        Do(game, new Explore(Direction.South));
+        Do(game, new Reveal(Direction.East));
         Do(game, new EndTurn());
 
-        Do(game, new Reveal(Direction.West, Rotation: 0));
+        Do(game, new Reveal(Direction.West));
         Assert.True(game.Bag.IsEmpty);
 
         // Emptying the bag lays the sanctuary at the far end of what is on the table.

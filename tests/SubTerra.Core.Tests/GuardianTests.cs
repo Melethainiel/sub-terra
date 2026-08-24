@@ -63,7 +63,7 @@ public class GuardianTests
     public void AGuardianArrivesWithItsPocket()
     {
         var (game, pocket) = GameWithGuardianNextDoor();
-        game.Play(new Reveal(Direction.South, Rotation: 0));
+        game.Play(new Reveal(Direction.South));
 
         Assert.Equal([pocket], game.Guardians);
     }
@@ -72,7 +72,7 @@ public class GuardianTests
     public void GuardiansCloseInWhenTheRoundEnds()
     {
         var (game, pocket) = GameWithGuardianNextDoor();
-        game.Play(new Reveal(Direction.South, Rotation: 0));
+        game.Play(new Reveal(Direction.South));
 
         game.Play(new EndTurn());
         var round = game.Play(new EndTurn());
@@ -88,7 +88,7 @@ public class GuardianTests
     public void AGuardianOnYourTileStrikesRatherThanWalks()
     {
         var (game, _) = GameWithGuardianNextDoor();
-        game.Play(new Reveal(Direction.South, Rotation: 0));
+        game.Play(new Reveal(Direction.South));
         game.Play(new EndTurn());
         var round = game.Play(new EndTurn());
 
@@ -105,7 +105,7 @@ public class GuardianTests
 
         // Explore reveals the pocket and steps into it for a single action, leaving
         // one to walk back out with.
-        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South));
         Assert.Equal(pocket, game.CurrentExplorer.Cell);
 
         var before = game.CurrentExplorer.Health;
@@ -121,7 +121,7 @@ public class GuardianTests
     {
         var (game, pocket) = GameWithGuardianNextDoor(health: 1);
 
-        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South));
         Assert.Equal(pocket, game.CurrentExplorer.Cell);
 
         var result = game.Play(new Move(Direction.North));
@@ -139,7 +139,7 @@ public class GuardianTests
         var seed = SeedWhereDieIs(roll => roll >= GameState.AttackSuccessRoll, rollsFirst: 1);
         var (game, _) = GameWithGuardianNextDoor(seed);
 
-        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South));
         var result = game.Play(new Attack());
 
         Assert.True(result.Accepted);
@@ -153,7 +153,7 @@ public class GuardianTests
         var seed = SeedWhereDieIs(roll => roll < GameState.AttackSuccessRoll, rollsFirst: 1);
         var (game, _) = GameWithGuardianNextDoor(seed);
 
-        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South));
         var result = game.Play(new Attack());
 
         Assert.True(result.Accepted);
@@ -178,7 +178,7 @@ public class GuardianTests
             new TileBag([Tile(TileKind.Ruins)]),
             new Rng(1));
 
-        var revealed = game.Play(new Reveal(Direction.South, Rotation: 0));
+        var revealed = game.Play(new Reveal(Direction.South));
         var ruins = new Cell(Start.Column, 1);
 
         Assert.Contains(new RubbleAppeared(ruins), revealed.Events);
@@ -196,7 +196,7 @@ public class GuardianTests
             new Rng(1));
 
         var ruins = new Cell(Start.Column, 1);
-        game.Play(new Reveal(Direction.South, Rotation: 0));
+        game.Play(new Reveal(Direction.South));
         game.Play(new EndTurn());
 
         var result = game.Play(new Dig(ruins));

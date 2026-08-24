@@ -91,7 +91,12 @@ public partial class BoardView : Node3D
     }
 
     /// <summary>Clears and redraws the whole board. Cheap enough at this scale.</summary>
-    public void Render(TempleBoard board)
+    /// <param name="pending">
+    /// A tile that is not on the table yet — the orientation currently being weighed
+    /// up for a tile just out of the bag. It is drawn like any other, because that is
+    /// the whole point: the choice is made by looking at the temple, not at a label.
+    /// </param>
+    public void Render(TempleBoard board, (Cell Cell, PlacedTile Tile)? pending = null)
     {
         foreach (var child in GetChildren())
         {
@@ -101,6 +106,11 @@ public partial class BoardView : Node3D
         foreach (var (cell, tile) in board.Tiles)
         {
             AddTile(cell, tile);
+        }
+
+        if (pending is { } laid)
+        {
+            AddTile(laid.Cell, laid.Tile);
         }
     }
 

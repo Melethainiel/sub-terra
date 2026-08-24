@@ -79,6 +79,11 @@ public partial class AppRoot : Node3D
     private Hud _hud = null!;
     private Camera3D _camera = null!;
     private Cell? _hovered;
+
+    /// <summary>Which answer to the pending arbitration is currently laid out on the
+    /// board — the tile just drawn, turned the way that option would turn it.</summary>
+    private int _option;
+
     private ViewMode _viewMode = ViewMode.Overview;
     private float _overviewFov;
 
@@ -100,6 +105,7 @@ public partial class AppRoot : Node3D
 
         _hud.ActionRequested += action => Apply(Command(action));
         _hud.OptionChosen += option => Apply(new Decide(option));
+        _hud.OptionPreviewed += ShowOption;
 
         _board = new BoardView { Name = "BoardView" };
         _tokens = new TokenView { Name = "TokenView" };
@@ -166,6 +172,20 @@ public partial class AppRoot : Node3D
 
         switch (@event)
         {
+            // What is being weighed up stands on the board, and the wheel goes through
+            // it: a tile out of the bag turns, a stirring Guardian moves pocket. R for
+            // the hand that isn't on the mouse.
+            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp } when Weighing:
+            case InputEventKey { Pressed: true, Echo: false, Keycode: Key.R } when Weighing:
+                Turn(1);
+                GetViewport().SetInputAsHandled();
+                break;
+
+            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelDown } when Weighing:
+                Turn(-1);
+                GetViewport().SetInputAsHandled();
+                break;
+
             case InputEventMouseMotion motion when _viewMode == ViewMode.Fps && ShouldCapture:
                 Look(motion.Relative);
                 break;
@@ -247,7 +267,12 @@ public partial class AppRoot : Node3D
     {
         if (_game.Pending is { } decision)
         {
-            var option = decision.Options.ToList().FindIndex(candidate => candidate.Cell == cell);
+            // Every way of turning a drawn tile answers on the same cell, so a click
+            // on the board takes the one it is showing rather than the first in the
+            // list: what you see laid out is what you lay down.
+            var option = decision.Options[_option].Cell == cell
+                ? _option
+                : decision.Options.ToList().FindIndex(candidate => candidate.Cell == cell);
 
             if (option >= 0)
             {
@@ -538,15 +563,85 @@ public partial class AppRoot : Node3D
         _highlights.Render(Hints(), _hovered);
     }
 
+    /// <summary>
+    /// Whether the question on the table is one the board itself shows — a tile
+    /// waiting to be turned, a Guardian about to stir in one pocket or another — and
+    /// this machine is the one being asked.
+    /// </summary>
+    private bool Weighing =>
+        _game.Pending is { Kind: DecisionKind.TileOrientation or DecisionKind.GuardianAwakening }
+        && Session.Owns(Due)
+        && _begun;
+
+    /// <summary>Goes a notch through the answers, either way round.</summary>
+    private void Turn(int notches)
+    {
+        if (_game.Pending is not { } decision)
+        {
+            return;
+        }
+
+        var count = decision.Options.Count;
+        ShowOption((((_option + notches) % count) + count) % count);
+    }
+
+    /// <summary>
+    /// Lays another of the pending arbitration's answers out on the board. Only the
+    /// picture changes: nothing is played until the option is taken — and only for
+    /// the player being asked, so a spectator never sees a tile that is not there.
+    /// </summary>
+    private void ShowOption(int option)
+    {
+        if (_game.Pending is not { } decision || option < 0 || option >= decision.Options.Count
+            || !Session.Owns(Due))
+        {
+            return;
+        }
+
+        _option = option;
+        _board.Render(_game.Board, Previewed());
+        _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
+        _hud.Highlight(_option);
+    }
+
+    /// <summary>
+    /// The tile the temple is being asked about, turned the way the option under
+    /// consideration would turn it — there is nothing to show for the other questions,
+    /// whose answers are already on the table.
+    /// </summary>
+    private (Cell Cell, PlacedTile Tile)? Previewed() =>
+        _game.Pending is { } decision
+        && Session.Owns(Due)
+        && decision.Options[_option] is { Cell: { } cell, Tile: { } tile }
+            ? (cell, tile)
+            : null;
+
+    /// <summary>
+    /// The Guardian pocket being weighed up, where the meeple stands while the player
+    /// makes up their mind. The other questions about Guardians are about ones already
+    /// on the table, and have nothing to put there.
+    /// </summary>
+    private Cell? Stirring() =>
+        _game.Pending is { Kind: DecisionKind.GuardianAwakening } decision && Session.Owns(Due)
+            ? decision.Options[_option].Cell
+            : null;
+
     private void Refresh()
     {
-        _board.Render(_game.Board);
-        _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null);
+        // A fresh question is shown with its first answer laid out; an answered one
+        // leaves nothing hanging over the board.
+        _option = 0;
+        _board.Render(_game.Board, Previewed());
+        _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
         // Before the highlights: in the FPS view the camera decides what the
         // crosshair rests on, and that is the cell they have to light up.
         PositionCamera();
         _highlights.Render(Hints(), _hovered);
         _hud.Show(_game, Session.Owns(Due) && _begun, Notice());
+
+        // Nothing is badged for a table watching someone else turn a tile: the board
+        // in front of them is bare, and a badge would point at a tile that isn't there.
+        _hud.Highlight(Session.Owns(Due) ? _option : -1);
         SyncMouseMode();
     }
 

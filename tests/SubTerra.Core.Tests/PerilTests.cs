@@ -195,7 +195,7 @@ public class PerilTests
 
         while (!game.Bag.IsEmpty)
         {
-            game.Play(new Explore(Direction.South, Rotation: 0));
+            game.Play(new Explore(Direction.South));
             game.Play(new EndTurn());
         }
 

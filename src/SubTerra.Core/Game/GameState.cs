@@ -615,29 +615,42 @@ public sealed class GameState
         }
 
         var exit = new TempleExit(explorer.Cell, reveal.Direction);
-        var drawn = Bag.Draw(Rng);
 
-        if (Orientation(exit, drawn, reveal.Rotation) is not { } tile)
+        // The exit is judged before the bag is touched: drawing a tile only to put it
+        // back would still have turned the Rng, and a peer that refused the command
+        // without drawing would no longer be playing the same game.
+        if (!Board.OpenExits().Contains(exit))
         {
-            // Nothing has happened yet as far as the players are concerned, so the
-            // tile goes straight back rather than being lost.
-            Bag.Return(drawn);
-            return Script.Refuse($"{drawn.Id} ne se raccorde pas à {exit.From} vers {reveal.Direction}.");
+            return Script.Refuse($"Aucune issue à dégager en {exit.From} vers {reveal.Direction.Name()}.");
         }
 
-        Board.Place(exit.Target, tile, exit.From);
         ActionPoints--;
 
-        return Script.Of(RevealScript(exit.Target, drawn, tile.Rotation));
+        return Script.Of(RevealScript(exit, Bag.Draw(Rng)));
     }
 
     /// <summary>
-    /// What the newly laid tile brings with it — and, if that was the last one in the
-    /// bag, the Sanctuary at the far end of the temple.
+    /// How the drawn tile is laid, what it brings with it — and, if that was the last
+    /// one in the bag, the Sanctuary at the far end of the temple.
     /// </summary>
-    private IEnumerable<GameEvent> RevealScript(Cell cell, TileDefinition drawn, int rotation)
+    private IEnumerable<GameEvent> RevealScript(TempleExit exit, TileDefinition drawn)
     {
-        yield return new TileRevealed(cell, drawn, rotation);
+        var cell = exit.Target;
+        var orientations = Orientations(exit, drawn);
+
+        foreach (var asking in Ask(
+            DecisionKind.TileOrientation,
+            $"La tuile sort du sac : dans quel sens la poser en {cell} ?",
+            CurrentExplorer.Id,
+            [.. orientations.Select(tile => new DecisionOption(Openings(tile), cell, Tile: tile))]))
+        {
+            yield return asking;
+        }
+
+        var laid = orientations[_answer];
+
+        Board.Place(cell, laid, exit.From);
+        yield return new TileRevealed(cell, drawn, laid.Rotation);
 
         foreach (var consequence in OnTilePlaced(cell, drawn))
         {
@@ -659,26 +672,31 @@ public sealed class GameState
     }
 
     /// <summary>
-    /// How the drawn tile ends up lying. A player picks the exit first and only then
-    /// sees what came out of the bag, so an unstated preference means "any way that
-    /// joins up" — and a stated one is honoured or refused, never quietly overridden.
+    /// The ways the drawn tile could lie on that exit. One entry per distinct layout:
+    /// a corridor laid across a passage joins up the same way whichever end faces the
+    /// tile it came from, and the temple never asks a question with one answer.
     /// </summary>
-    private PlacedTile? Orientation(TempleExit exit, TileDefinition drawn, int? wanted)
+    private List<PlacedTile> Orientations(TempleExit exit, TileDefinition drawn)
     {
-        var rotations = wanted is { } rotation ? [rotation] : Enumerable.Range(0, 4);
+        var orientations = new List<PlacedTile>();
 
-        foreach (var candidate in rotations)
+        for (var rotation = 0; rotation < 4; rotation++)
         {
-            var tile = new PlacedTile(drawn, candidate);
+            var tile = new PlacedTile(drawn, rotation);
 
-            if (Board.CanPlace(exit.Target, tile, exit.From))
+            if (Board.CanPlace(exit.Target, tile, exit.From)
+                && !orientations.Any(other => other.OpenSides == tile.OpenSides))
             {
-                return tile;
+                orientations.Add(tile);
             }
         }
 
-        return null;
+        return orientations;
     }
+
+    /// <summary>Where a tile leads once turned, which is all there is to choose between.</summary>
+    private static string Openings(PlacedTile tile) =>
+        "Galeries : " + string.Join(" · ", DirectionExtensions.All.Where(tile.IsOpen).Select(side => side.Name()));
 
     /// <summary>What a tile brings with it the moment it hits the table.</summary>
     private IEnumerable<GameEvent> OnTilePlaced(Cell cell, TileDefinition tile)
@@ -722,7 +740,7 @@ public sealed class GameState
     /// </summary>
     private Script ExecuteExplore(Explore explore)
     {
-        var revealed = ExecuteReveal(new Reveal(explore.Direction, explore.Rotation));
+        var revealed = ExecuteReveal(new Reveal(explore.Direction));
 
         return revealed.Rejection is not null
             ? revealed

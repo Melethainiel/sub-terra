@@ -77,11 +77,21 @@ question et rend la main ; `Decide` remplit la réponse et relance la pompe. Com
 l'arbitrage est une commande, une partie se rejoue toujours à partir de sa graine
 et de sa liste de commandes.
 
-Une **Révélation** ne fixe plus l'orientation avant la pioche. On choisit une
-issue, la tuile sort du sac, et l'orientation vient après : une préférence
-absente vaut « n'importe quel sens qui se raccorde », une préférence exprimée
-est honorée ou refusée, jamais silencieusement remplacée. C'est l'ordre réel des
-gestes, et c'est l'interface qui a révélé l'erreur.
+Une **Révélation** ne nomme qu'une issue. La tuile sort du sac ensuite, et le sens
+dans lequel on la pose est un arbitrage de plus (`TileOrientation`), adressé au
+joueur actif : le livret laisse l'orientation libre pourvu qu'une connexion
+s'établisse, et c'est donc au joueur de la tourner, pas au moteur d'en choisir
+une. La commande ne porte plus de rotation du tout — on ne choisit pas le sens
+d'une tuile qu'on n'a pas encore vue.
+
+Le moteur n'offre que les poses **distinctes** : un couloir posé en travers se
+raccorde pareil quel que soit le bout qui regarde la tuile d'où l'on vient, et un
+croisement n'a qu'une façon d'être. Une tuile qui ne tient qu'un sens ne pose
+donc aucune question, comme partout ailleurs.
+
+L'issue, elle, est jugée **avant** que le sac ne soit touché : piocher une tuile
+pour la remettre aurait quand même tourné le RNG, et un pair qui refuse la
+commande sans piocher ne jouerait plus la même partie.
 
 Deux écarts assumés, notés ici pour ne pas les oublier :
 
@@ -162,6 +172,22 @@ creuse, rouge c'est une réponse attendue. `HighlightView` ne connaît aucune r�
 — il demande au moteur (`Steps()`, `Exits()`, `DigTargets()`) et peint la réponse.
 Ces requêtes sont un confort, jamais une autorité : toute commande est revalidée
 à l'entrée.
+
+Ce qu'on peut voir ne se choisit pas dans une liste : c'est **posé à l'essai sur le
+plateau**, et on en fait le tour — molette, `R`, ou en survolant une ligne du
+panneau — avant de trancher. Une tuile qui sort du sac tourne sur sa case ; un
+Gardien qui s'éveille se dresse tour à tour dans chaque case Gardien candidate. Un
+clic sur la case prend ce qu'on a sous les yeux, et le panneau badge la même
+réponse d'un `▶`, pour que la liste et le temple ne racontent jamais deux choses
+différentes. `BoardView.Render` prend pour cela une tuile en attente et
+`TokenView.Render` un Gardien qui n'existe pas encore ; l'un comme l'autre
+disparaissent quand la question tombe.
+
+L'essai est **strictement local et privé au joueur interrogé** : rien n'en part sur
+le fil, et les autres tables ne voient la tuile posée ou le Gardien debout qu'une
+fois la réponse donnée, sans quoi elles regarderaient quelque chose qui n'existe
+pas. La vue à la première personne en profite le plus : on tourne la tuile devant
+soi, dans la galerie où l'on se tient.
 
 Le HUD affiche l'expédition entière — cœurs, actions, objet porté, médaillon —
 chaque ligne de la couleur de son meeple. Quand une question tombe, le panneau

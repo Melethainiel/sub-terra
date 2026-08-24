@@ -41,7 +41,7 @@ public class GameActionsTests
     {
         var game = GameWith(TempleSetup.CreateBoard(), new TileBag([Tile(TileKind.Normal, TileShape.Junction)]));
 
-        var result = game.Play(new Explore(Direction.South, Rotation: 0));
+        var result = game.Play(new Explore(Direction.South));
 
         Assert.True(result.Accepted);
         Assert.Equal(new Cell(Start.Column, 1), game.CurrentExplorer.Cell);
@@ -62,7 +62,7 @@ public class GameActionsTests
             new TileBag([Tile(TileKind.Bridge, TileShape.Corridor)]),
             new Rng(1));
 
-        var result = game.Play(new Explore(Direction.South, Rotation: 0));
+        var result = game.Play(new Explore(Direction.South));
 
         Assert.True(result.Accepted);
         Assert.True(game.Board.IsOccupied(landing));
@@ -210,7 +210,7 @@ public class GameActionsTests
     public void AnExplorerPicksUpTheKeyLyingOnTheirTile()
     {
         var game = GameWith(TempleSetup.CreateBoard(), new TileBag([Tile(TileKind.Key, TileShape.DeadEnd)]));
-        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South));
 
         var result = game.Play(new PickUpItem(ItemKind.Key));
 
@@ -223,7 +223,7 @@ public class GameActionsTests
     public void AnExplorerCarriesOneThingAtATime()
     {
         var game = GameWith(TempleSetup.CreateBoard(), new TileBag([Tile(TileKind.Key, TileShape.DeadEnd)]));
-        game.Play(new Explore(Direction.South, Rotation: 0));
+        game.Play(new Explore(Direction.South));
         game.Play(new PickUpItem(ItemKind.Key));
         game.Play(new EndTurn());
         game.Play(new DropItem());

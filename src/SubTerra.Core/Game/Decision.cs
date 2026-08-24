@@ -23,13 +23,21 @@ public enum DecisionKind
 
     /// <summary>Several tiles at the far end of the temple could take the Sanctuary.</summary>
     SanctuarySite,
+
+    /// <summary>The drawn tile joins up more than one way round: which way it is laid.</summary>
+    TileOrientation,
 }
 
 /// <summary>
 /// One of the answers on offer. <paramref name="Cell"/> and <paramref name="Explorer"/>
-/// let the interface point at the board instead of showing a line of text.
+/// let the interface point at the board instead of showing a line of text, and
+/// <paramref name="Tile"/> lets it lay the tile down for a look before it is committed.
 /// </summary>
-public sealed record DecisionOption(string Label, Cell? Cell = null, ExplorerId? Explorer = null);
+public sealed record DecisionOption(
+    string Label,
+    Cell? Cell = null,
+    ExplorerId? Explorer = null,
+    PlacedTile? Tile = null);
 
 /// <summary>
 /// A question the game is waiting on. Nothing else happens until it is answered with

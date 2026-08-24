@@ -17,7 +17,11 @@ public partial class TokenView : Node3D
     /// coloured capsule half a metre from the lens and nothing else can be seen.
     /// Guardians and items stay — one filling your view is worth knowing about.
     /// </summary>
-    public void Render(GameState game, ExplorerId? throughTheEyesOf = null)
+    /// <param name="stirring">
+    /// A Guardian pocket being considered for an awakening: the meeple stands there
+    /// while the player weighs it up, and is gone again if they settle on another.
+    /// </param>
+    public void Render(GameState game, ExplorerId? throughTheEyesOf = null, Cell? stirring = null)
     {
         var blind = throughTheEyesOf is { } eyes && game.Explorers[eyes.Value] is { IsPlaying: true } viewer
             ? viewer.Cell
@@ -46,7 +50,9 @@ public partial class TokenView : Node3D
                 lying: explorer.IsDown);
         }
 
-        foreach (var (cell, index) in game.Guardians.Select((cell, index) => (cell, index)))
+        var guardians = stirring is { } woken ? [.. game.Guardians, woken] : game.Guardians;
+
+        foreach (var (cell, index) in guardians.Select((cell, index) => (cell, index)))
         {
             AddMeeple($"Guardian_{index}", cell, Palette.Guardian, height: 2.1f, offset: Fan(4 + index));
         }

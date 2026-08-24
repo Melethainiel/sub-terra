@@ -76,7 +76,7 @@ public class GameStateTests
     {
         var game = GameWithBag(Tile(TileKind.Normal, TileShape.Junction));
 
-        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South));
 
         Assert.True(result.Accepted);
         Assert.True(game.Board.IsOccupied(Start.Neighbour(Direction.South)));
@@ -85,16 +85,58 @@ public class GameStateTests
     }
 
     [Fact]
-    public void ATileThatWouldNotConnectGoesStraightBackInTheBag()
+    public void RevealingWhereThereIsNoExitNeverTouchesTheBag()
     {
         var game = GameWithBag(Tile(TileKind.Normal, TileShape.DeadEnd));
 
-        // Turned away from the entrance, its single opening faces south.
-        var result = game.Play(new Reveal(Direction.South, Rotation: 2));
+        // The west lateral arm already fills that cell: there is nothing to uncover.
+        var result = game.Play(new Reveal(Direction.West));
 
         Assert.False(result.Accepted);
         Assert.Equal(1, game.Bag.Count);
         Assert.Equal(GameState.ActionsPerTurn, game.ActionPoints);
+    }
+
+    [Fact]
+    public void TheDrawnTileIsLaidTheWayThePlayerTurnsIt()
+    {
+        var game = GameWithBag(Tile(TileKind.Normal, TileShape.Corner));
+        var target = Start.Neighbour(Direction.South);
+
+        var asked = game.Execute(new Reveal(Direction.South));
+
+        // A corner joins up two ways round: open back north and east, or north and west.
+        Assert.True(asked.Accepted);
+        var decision = game.Pending;
+        Assert.NotNull(decision);
+        Assert.Equal(DecisionKind.TileOrientation, decision.Kind);
+        Assert.Equal(game.CurrentExplorer.Id, decision.Chooser);
+        Assert.Equal(2, decision.Options.Count);
+        Assert.All(decision.Options, option => Assert.Equal(target, option.Cell));
+
+        // Nothing is on the table while the question stands.
+        Assert.False(game.Board.IsOccupied(target));
+
+        var west = decision.Options.ToList().FindIndex(option => option.Label.Contains("Ouest"));
+        var laid = game.Execute(new Decide(west));
+
+        Assert.True(laid.Accepted);
+        var tile = game.Board.TileAt(target);
+        Assert.NotNull(tile);
+        Assert.Equal(Sides.North | Sides.West, tile.OpenSides);
+        Assert.Contains(laid.Events, e => e is TileRevealed);
+    }
+
+    [Fact]
+    public void ATileThatLiesOnlyOneWayIsNoQuestionAtAll()
+    {
+        var game = GameWithBag(Tile(TileKind.Normal, TileShape.Crossroads));
+
+        var result = game.Execute(new Reveal(Direction.South));
+
+        Assert.True(result.Accepted);
+        Assert.Null(game.Pending);
+        Assert.True(game.Board.IsOccupied(Start.Neighbour(Direction.South)));
     }
 
     [Fact]
@@ -104,7 +146,7 @@ public class GameStateTests
         var target = Start.Neighbour(Direction.South);
 
         // Its one opening faces north, back towards the entrance it is revealed from.
-        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South));
 
         Assert.True(result.Accepted);
         Assert.Contains(new ItemAppeared(target, ItemKind.Key), result.Events);
@@ -117,7 +159,7 @@ public class GameStateTests
         var game = GameWithBag(Tile(TileKind.Guardian, TileShape.Corner));
         var target = Start.Neighbour(Direction.South);
 
-        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South));
 
         Assert.True(result.Accepted);
         Assert.Contains(new GuardianAppeared(target), result.Events);
@@ -129,10 +171,10 @@ public class GameStateTests
     {
         var game = GameWithBag(Tile(TileKind.Normal, TileShape.Junction));
 
-        var result = game.Play(new Reveal(Direction.South, Rotation: 0));
+        var result = game.Play(new Reveal(Direction.South));
 
         Assert.Contains(result.Events, e => e is BagEmptied);
-        Assert.False(game.Play(new Reveal(Direction.South, Rotation: 0)).Accepted);
+        Assert.False(game.Play(new Reveal(Direction.South)).Accepted);
     }
 
     [Fact]
@@ -192,7 +234,7 @@ public class GameStateTests
         Assert.True(game.CurrentExplorer.IsDown);
         Assert.Equal(1, game.ActionPoints);
         Assert.False(game.Play(new Overexert()).Accepted);
-        Assert.False(game.Play(new Reveal(Direction.South, 0)).Accepted);
+        Assert.False(game.Play(new Reveal(Direction.South)).Accepted);
         Assert.True(game.Play(new Move(Direction.West)).Accepted);
     }
 
@@ -247,7 +289,7 @@ public class GameStateTests
         var game = GameWithBag(Tile(TileKind.Bridge, TileShape.Corridor));
         var bridge = Start.Neighbour(Direction.South);
 
-        game.Play(new Reveal(Direction.South, Rotation: 0));
+        game.Play(new Reveal(Direction.South));
         Assert.True(game.Play(new Move(Direction.South)).Accepted);
         Assert.Equal(bridge, game.CurrentExplorer.Cell);
 
