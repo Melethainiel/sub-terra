@@ -67,7 +67,28 @@ public partial class BoardView : Node3D
 
     private readonly Dictionary<(TileKind Kind, TileShape Shape), PackedScene?> _scenes = [];
 
+    /// <summary>Where the rock is sliced off when looking down on the temple: above
+    /// the walking height, below the vault, so a gallery reads as a corridor with
+    /// walls rather than as a lid.</summary>
+    public const float CutawayHeight = 1.2f;
+
+    /// <summary>Out of reach: nothing is ever cut when standing inside.</summary>
+    private const float NoCutaway = 100f;
+
     public static Vector3 ToWorld(Cell cell) => new(cell.Column * TileSize, 0f, cell.Row * TileSize);
+
+    /// <summary>
+    /// Slices the vaults off, or puts them back. The rock is one shared material, so
+    /// this is a single parameter for the whole temple rather than a pass over the
+    /// tiles.
+    /// </summary>
+    public static void ShowVaults(bool roofed)
+    {
+        if (RockMaterial.Value is ShaderMaterial rock)
+        {
+            rock.SetShaderParameter("cutaway", roofed ? NoCutaway : CutawayHeight);
+        }
+    }
 
     /// <summary>Clears and redraws the whole board. Cheap enough at this scale.</summary>
     public void Render(TempleBoard board)

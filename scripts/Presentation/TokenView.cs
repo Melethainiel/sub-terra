@@ -10,8 +10,19 @@ namespace SubTerra.Presentation;
 /// </summary>
 public partial class TokenView : Node3D
 {
-    public void Render(GameState game)
+    /// <summary>
+    /// Draws the tokens. <paramref name="throughTheEyesOf"/> names the explorer the
+    /// camera is currently looking through, if any: their own meeple and whoever
+    /// shares their tile are left out, since from the inside they are 1.70 m of
+    /// coloured capsule half a metre from the lens and nothing else can be seen.
+    /// Guardians and items stay — one filling your view is worth knowing about.
+    /// </summary>
+    public void Render(GameState game, ExplorerId? throughTheEyesOf = null)
     {
+        var blind = throughTheEyesOf is { } eyes && game.Explorers[eyes.Value] is { IsPlaying: true } viewer
+            ? viewer.Cell
+            : (Cell?)null;
+
         foreach (var child in GetChildren())
         {
             child.QueueFree();
@@ -21,7 +32,7 @@ public partial class TokenView : Node3D
         // player can tell there are two of them.
         var crowd = new Dictionary<Cell, int>();
 
-        foreach (var explorer in game.Explorers.Where(e => e.IsPlaying))
+        foreach (var explorer in game.Explorers.Where(e => e.IsPlaying && e.Cell != blind))
         {
             var rank = crowd.GetValueOrDefault(explorer.Cell);
             crowd[explorer.Cell] = rank + 1;

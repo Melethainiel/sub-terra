@@ -11,6 +11,12 @@ render_mode cull_back;
 // through. That is the part the mesh used to try to carry in geometry — 25 000
 // triangles a tile, and it read as debris. It belongs here.
 
+// Everything above this height is cut away. The temple seen from above is a lid of
+// rock, and the floor, the meeples and the highlights are all under it — so the
+// overview slices the vaults off and looks down into the galleries, while the
+// first-person view sets it out of reach and keeps its roof.
+uniform float cutaway = 100.0;
+
 uniform vec3 albedo_dark : source_color = vec3(0.05, 0.05, 0.062);
 uniform vec3 albedo_light : source_color = vec3(0.22, 0.225, 0.25);
 
@@ -144,6 +150,10 @@ void vertex() {
 }
 
 void fragment() {
+	if (world_pos.y > cutaway) {
+		discard;
+	}
+
 	vec3 n = normalize(world_normal);
 
 	// Plates run bigger in some stretches of a gallery and finer in others; one

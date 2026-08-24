@@ -37,10 +37,40 @@ public partial class AppRoot : Node3D
     /// <summary>How often a client says "I am at the table" until the host answers.</summary>
     private const double SeatingCall = 1.0;
 
+    /// <summary>How this machine currently looks at the temple. Purely local — every
+    /// peer at the table is free to pick its own, so it never travels as a command.</summary>
+    private enum ViewMode
+    {
+        Overview,
+        Fps,
+    }
+
+    /// <summary>An adult's eyes above the floor, under a 2.25 m vault.</summary>
+    private const float EyeHeight = 1.6f;
+
+    /// <summary>Where a look resets to: tipped down a little, not level. That keeps
+    /// <see cref="CellUnder"/>'s floor raycast working and the floor's highlight
+    /// patches in view until the mouse looks somewhere else.</summary>
+    private const float FpsRestPitchDegrees = -12f;
+
+    private const float FpsFov = 78f;
+
+    /// <summary>Degrees the look turns per pixel of mouse motion.</summary>
+    private const float LookSensitivity = 0.12f;
+
+    private const float LookPitchMin = -75f;
+
+    private const float LookPitchMax = 60f;
+
     private readonly Queue<string> _log = [];
 
     /// <summary>Host only: the peers that have the temple on screen.</summary>
     private readonly HashSet<long> _seated = [];
+
+    /// <summary>The way each explorer was last seen walking, dug, or turned to
+    /// reveal — purely presentational, and rebuilt the same way by every peer as it
+    /// replays the same commands, so nothing needs to travel for it.</summary>
+    private readonly Dictionary<ExplorerId, Direction> _facing = [];
 
     private GameState _game = null!;
     private BoardView _board = null!;
@@ -49,6 +79,15 @@ public partial class AppRoot : Node3D
     private Hud _hud = null!;
     private Camera3D _camera = null!;
     private Cell? _hovered;
+    private ViewMode _viewMode = ViewMode.Overview;
+    private float _overviewFov;
+
+    /// <summary>The look the mouse has built in FPS mode, and whose look it is — so a
+    /// turn changing hands, or a step taken, resets it instead of leaving the camera
+    /// pointed wherever the mouse last left it for nobody in particular.</summary>
+    private float _lookYaw;
+    private float _lookPitch;
+    private ExplorerId? _lookSubject;
 
     /// <summary>Whether play has opened. A networked table waits for everybody.</summary>
     private bool _begun = true;
@@ -56,6 +95,7 @@ public partial class AppRoot : Node3D
     public override void _Ready()
     {
         _camera = GetNode<Camera3D>("Camera3D");
+        _overviewFov = _camera.Fov;
         _hud = GetNode<Hud>("Hud");
 
         _hud.ActionRequested += action => Apply(Command(action));
@@ -98,6 +138,27 @@ public partial class AppRoot : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        // Looking around is never a move: it stays live even mid-arbitration, once
+        // the game is over, or while waiting for the rest of the table.
+        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.V })
+        {
+            ToggleView();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        // Escape is the way out anyone tries first, and with the pointer captured
+        // and invisible it is the only one that doesn't need the pointer back to
+        // work. It surfaces rather than toggles: from underground you always come
+        // up, never the other way round.
+        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }
+            && _viewMode == ViewMode.Fps)
+        {
+            ToggleView();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
         if (_game.IsOver || !_begun)
         {
             return;
@@ -105,6 +166,16 @@ public partial class AppRoot : Node3D
 
         switch (@event)
         {
+            case InputEventMouseMotion motion when _viewMode == ViewMode.Fps && ShouldCapture:
+                Look(motion.Relative);
+                break;
+
+            // Looking through an Explorer's eyes with the pointer free — a decision
+            // is open — is looking at a still image: no turning, and no hover from a
+            // cursor that is nowhere near what the crosshair is on.
+            case InputEventMouseMotion when _viewMode == ViewMode.Fps:
+                break;
+
             case InputEventMouseMotion motion:
                 Hover(CellUnder(motion.Position));
                 break;
@@ -115,12 +186,29 @@ public partial class AppRoot : Node3D
                 break;
 
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } click
-                when CellUnder(click.Position) is { } cell:
+                when CellUnder(_viewMode == ViewMode.Fps ? ScreenCentre() : click.Position) is { } cell:
                 ClickOn(cell, click.ShiftPressed, click.CtrlPressed);
                 GetViewport().SetInputAsHandled();
                 break;
         }
     }
+
+    /// <summary>
+    /// Turns the FPS look by a mouse delta — the crosshair stays screen-centre, the
+    /// world turns under it instead. Repaints the hover highlight the same way a
+    /// mouse move over the board does in the overview, so whatever is dead ahead is
+    /// lit up before it is clicked.
+    /// </summary>
+    private void Look(Vector2 relative)
+    {
+        _lookYaw -= relative.X * LookSensitivity;
+        _lookPitch = Mathf.Clamp(_lookPitch - relative.Y * LookSensitivity, LookPitchMin, LookPitchMax);
+
+        _camera.RotationDegrees = new Vector3(_lookPitch, _lookYaw, 0f);
+        Hover(CellUnder(ScreenCentre()));
+    }
+
+    private Vector2 ScreenCentre() => GetViewport().GetVisibleRect().Size / 2f;
 
     /// <summary>
     /// The actions that need no target beyond the explorer's own tile. Everything that
@@ -231,9 +319,39 @@ public partial class AppRoot : Node3D
     private string? NotYourTurn() =>
         Session.Owns(Due) ? null : $"C'est à {_game.Explorers[Due.Value].Name} de jouer.";
 
+    /// <summary>
+    /// Remembers which way an explorer was facing when they last moved, dug in a
+    /// direction, or turned to reveal a tile — so the FPS view has somewhere to look
+    /// besides straight into the wall they arrived from.
+    /// </summary>
+    private void TrackFacing(ExplorerId actor, GameCommand command)
+    {
+        var facing = command switch
+        {
+            Move move => move.Direction,
+            Explore explore => explore.Direction,
+            Reveal reveal => reveal.Direction,
+            Run { Steps: [.., var last] } => last,
+            _ => (Direction?)null,
+        };
+
+        if (facing is { } direction)
+        {
+            _facing[actor] = direction;
+
+            // The mouse may have turned this explorer's look elsewhere since the
+            // last step; walking a new way re-centres it, same as the direction.
+            if (_lookSubject == actor)
+            {
+                ResetLook(actor);
+            }
+        }
+    }
+
     /// <summary>The host's word: it plays the command and tells everyone else to.</summary>
     private void Settle(GameCommand command)
     {
+        var actor = Due;
         var result = _game.Execute(command);
 
         if (!result.Accepted)
@@ -242,6 +360,7 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        TrackFacing(actor, command);
         Refresh();
         Say(Describe(result.Events));
 
@@ -263,7 +382,9 @@ public partial class AppRoot : Node3D
             return;
         }
 
-        if (Session.SeatOf(Due)?.Peer != sender)
+        var actor = Due;
+
+        if (Session.SeatOf(actor)?.Peer != sender)
         {
             RpcId(sender, nameof(Refused), "Ce n'est pas à vous de jouer.");
             return;
@@ -277,6 +398,7 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        TrackFacing(actor, command);
         Refresh();
         Say(Describe(result.Events));
         Rpc(nameof(Play), line, _game.Fingerprint);
@@ -294,8 +416,10 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        var actor = Due;
         var result = _game.Execute(command);
 
+        TrackFacing(actor, command);
         Refresh();
         Say(Describe(result.Events));
 
@@ -417,10 +541,91 @@ public partial class AppRoot : Node3D
     private void Refresh()
     {
         _board.Render(_game.Board);
-        _tokens.Render(_game);
+        _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null);
+        // Before the highlights: in the FPS view the camera decides what the
+        // crosshair rests on, and that is the cell they have to light up.
+        PositionCamera();
         _highlights.Render(Hints(), _hovered);
         _hud.Show(_game, Session.Owns(Due) && _begun, Notice());
-        FrameBoard();
+        SyncMouseMode();
+    }
+
+    /// <summary>Local to this machine: which of the two ways it currently looks at
+    /// the temple.</summary>
+    private void ToggleView()
+    {
+        _viewMode = _viewMode == ViewMode.Overview ? ViewMode.Fps : ViewMode.Overview;
+        _hud.SetAiming(_viewMode == ViewMode.Fps);
+
+        // A full redraw, not just a camera move: which meeples are drawn, which cell
+        // the crosshair rests on and which legend the hint line shows all depend on
+        // the view, and all three were left as the other view had them.
+        Refresh();
+    }
+
+    /// <summary>
+    /// Whether the mouse should be locked to the window for a look, rather than free
+    /// to click things: not while a decision needs a HUD button a captured, invisible
+    /// cursor stuck at screen-centre could never reach, and not once nothing is being
+    /// played any more.
+    /// </summary>
+    private bool ShouldCapture => _viewMode == ViewMode.Fps && _begun && !_game.IsOver && _game.Pending is null;
+
+    /// <summary>
+    /// A free cursor stops dead at the edge of the screen, so turning any further
+    /// takes picking the mouse up and moving it again — unplayable as a look. Locking
+    /// it hides the pointer and re-centres it every frame instead, so <see cref="Look"/>
+    /// gets a clean, unbroken stream of relative motion.
+    /// </summary>
+    private void SyncMouseMode() =>
+        Input.MouseMode = ShouldCapture ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
+
+    private void PositionCamera()
+    {
+        BoardView.ShowVaults(_viewMode == ViewMode.Fps);
+
+        if (_viewMode == ViewMode.Fps)
+        {
+            FrameExplorer();
+        }
+        else
+        {
+            FrameBoard();
+        }
+    }
+
+    /// <summary>
+    /// Drops the camera to the eyes of whoever is due to act. The look itself is
+    /// whatever the mouse last set it to for that explorer — reset to face the way
+    /// they were last seen walking whenever the camera picks up a different one.
+    /// </summary>
+    private void FrameExplorer()
+    {
+        var explorer = _game.Explorers[Due.Value];
+
+        if (_lookSubject != explorer.Id)
+        {
+            _lookSubject = explorer.Id;
+            ResetLook(explorer.Id);
+        }
+
+        _camera.Fov = FpsFov;
+        _camera.Position = BoardView.ToWorld(explorer.Cell) + new Vector3(0f, EyeHeight, 0f);
+        _camera.RotationDegrees = new Vector3(_lookPitch, _lookYaw, 0f);
+
+        // The crosshair has moved with the camera even though the mouse hasn't: what
+        // it now rests on is what a click would act on, so light that up.
+        Hover(CellUnder(ScreenCentre()));
+    }
+
+    /// <summary>Faces the look back the way an explorer was last seen walking, at the
+    /// resting pitch that keeps <see cref="CellUnder"/> able to find a floor to click
+    /// on — the same convention <see cref="BoardView"/> turns a tile by.</summary>
+    private void ResetLook(ExplorerId explorer)
+    {
+        var facing = _facing.GetValueOrDefault(explorer, Direction.South);
+        _lookYaw = BoardView.QuarterTurnDegrees * (int)facing;
+        _lookPitch = FpsRestPitchDegrees;
     }
 
     /// <summary>Who the table is waiting on, when there is more than one player.</summary>
@@ -587,6 +792,8 @@ public partial class AppRoot : Node3D
     /// <summary>Keeps the whole temple in frame as it grows.</summary>
     private void FrameBoard()
     {
+        _camera.Fov = _overviewFov;
+
         var min = new Vector3(float.MaxValue, 0f, float.MaxValue);
         var max = new Vector3(float.MinValue, 0f, float.MinValue);
 

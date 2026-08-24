@@ -1,5 +1,6 @@
 using Godot;
 using SubTerra.Core.Game;
+using SubTerra.Core.Tiles;
 
 namespace SubTerra.Presentation;
 
@@ -41,5 +42,35 @@ public static class Palette
 
     public static readonly Color Faded = Color.Color8(150, 138, 128);
 
+    /// <summary>Warm torchlight — what an ordinary passage glows by.</summary>
+    public static readonly Color Torchlight = Color.Color8(255, 176, 110);
+
+    /// <summary>The heat off a run of Lava.</summary>
+    public static readonly Color LavaGlow = Color.Color8(255, 130, 40);
+
     public static Color For(ExplorerId explorer) => Explorers[explorer.Value % Explorers.Length];
+
+    /// <summary>
+    /// What a tile lights its own passage with. Reuses the sigil colours where a
+    /// tile already has one, so the glow and the marker on the floor read as the
+    /// same thing rather than two unrelated choices.
+    /// </summary>
+    public static Color TileGlow(TileKind kind) => kind switch
+    {
+        TileKind.Guardian => Guardian,
+        TileKind.Key or TileKind.Sanctuary => Key,
+        TileKind.Lava => LavaGlow,
+        _ => Torchlight,
+    };
+
+    /// <summary>
+    /// How hard the tile's own torch should shine, relative to an ordinary passage.
+    /// A run of Lava already lights itself — an equally strong torch on top of that
+    /// glowing floor just blows it out white, so it gets a much dimmer accent instead.
+    /// </summary>
+    public static float TileGlowEnergyScale(TileKind kind) => kind switch
+    {
+        TileKind.Lava => 0.3f,
+        _ => 1f,
+    };
 }

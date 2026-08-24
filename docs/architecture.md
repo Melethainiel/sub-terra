@@ -142,6 +142,21 @@ objets, `HighlightView` pour ce qu'un clic ferait, `Hud` pour l'expédition, les
 boutons d'action et les arbitrages. Aucune animation — les événements sont
 affichés en texte, pas encore rejoués.
 
+Deux vues, purement locales — chaque machine choisit la sienne, rien ne circule.
+La **vue du dessus** cadre le temple entier ; la **vue à la première personne**
+(`V`, `Échap` pour remonter) descend aux yeux de l'Explorateur dont c'est le tour,
+la souris capturée tourne le regard, et le viseur au centre remplace le curseur :
+c'est ce qu'il vise qu'un clic joue. Le regard se recentre sur la direction du
+dernier pas quand la caméra change d'Explorateur, et la souris est rendue dès
+qu'un arbitrage réclame un bouton du HUD.
+
+Vu du dessus, le temple serait un couvercle de roche : `rock.gdshader` tranche
+donc les voûtes au-dessus de 1,20 m (`BoardView.ShowVaults`) et on regarde dans
+les galeries comme dans un plan. En vue FPS la coupe est hors de portée et le
+toit revient. Et l'Explorateur dont on emprunte les yeux ne dessine plus son
+meeple, ni ceux qui partagent sa case : 1,70 m de capsule à cinquante centimètres
+de l'objectif ne laissaient rien voir d'autre.
+
 Le survol allume les cases : vert on avance, ambre on pose une tuile, gris on
 creuse, rouge c'est une réponse attendue. `HighlightView` ne connaît aucune règle
 — il demande au moteur (`Steps()`, `Exits()`, `DigTargets()`) et peint la réponse.

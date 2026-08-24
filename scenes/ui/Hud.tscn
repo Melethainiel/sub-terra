@@ -1,6 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://bpsy8kjpmib5a"]
 
-[ext_resource type="Script" path="res://scripts/Presentation/Hud.cs" id="1_hud"]
+[ext_resource type="Script" uid="uid://cu6pceu1skmec" path="res://scripts/Presentation/Hud.cs" id="1_hud"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ask"]
 content_margin_left = 22.0
@@ -18,10 +18,10 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
-[node name="Hud" type="CanvasLayer"]
+[node name="Hud" type="CanvasLayer" unique_id=1587134215]
 script = ExtResource("1_hud")
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="Margin" type="MarginContainer" parent="." unique_id=1297312278]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -33,61 +33,81 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 22
 theme_override_constants/margin_bottom = 16
 
-[node name="Rows" type="VBoxContainer" parent="Margin"]
+[node name="Rows" type="VBoxContainer" parent="Margin" unique_id=949379534]
+layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 10
 
-[node name="Header" type="Label" parent="Margin/Rows"]
+[node name="Header" type="Label" parent="Margin/Rows" unique_id=1507094183]
 unique_name_in_owner = true
-mouse_filter = 2
-text = "…"
+layout_mode = 2
 theme_override_colors/font_color = Color(0.96, 0.86, 0.76, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 17
+text = "…"
 
-[node name="Notice" type="Label" parent="Margin/Rows"]
+[node name="Notice" type="Label" parent="Margin/Rows" unique_id=301780276]
 unique_name_in_owner = true
-mouse_filter = 2
-text = ""
+layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.72, 0.42, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 17
 
-[node name="Party" type="VBoxContainer" parent="Margin/Rows"]
+[node name="Party" type="VBoxContainer" parent="Margin/Rows" unique_id=1315504679]
 unique_name_in_owner = true
+layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 2
 
-[node name="Spacer" type="Control" parent="Margin/Rows"]
-mouse_filter = 2
+[node name="Spacer" type="Control" parent="Margin/Rows" unique_id=962631591]
+layout_mode = 2
 size_flags_vertical = 3
-
-[node name="Log" type="Label" parent="Margin/Rows"]
-unique_name_in_owner = true
 mouse_filter = 2
-text = ""
+
+[node name="Log" type="Label" parent="Margin/Rows" unique_id=1412955981]
+unique_name_in_owner = true
+layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.78, 0.55, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 17
 
-[node name="Hint" type="Label" parent="Margin/Rows"]
+[node name="Hint" type="Label" parent="Margin/Rows" unique_id=1251332954]
 unique_name_in_owner = true
-mouse_filter = 2
-text = ""
+layout_mode = 2
 theme_override_colors/font_color = Color(0.62, 0.57, 0.52, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 14
 
-[node name="Actions" type="HBoxContainer" parent="Margin/Rows"]
+[node name="Actions" type="HBoxContainer" parent="Margin/Rows" unique_id=1797141598]
 unique_name_in_owner = true
+layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="Centre" type="CenterContainer" parent="."]
+[node name="Crosshair" type="CenterContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Mark" type="Label" parent="Crosshair"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.86, 0.7, 0.85)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "+"
+
+[node name="Centre" type="CenterContainer" parent="." unique_id=1446935046]
 anchors_preset = -1
 anchor_left = 0.58
 anchor_right = 1.0
@@ -96,21 +116,24 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Decision" type="PanelContainer" parent="Centre"]
+[node name="Decision" type="PanelContainer" parent="Centre" unique_id=1457871665]
 unique_name_in_owner = true
 visible = false
+layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_ask")
 
-[node name="Box" type="VBoxContainer" parent="Centre/Decision"]
+[node name="Box" type="VBoxContainer" parent="Centre/Decision" unique_id=20290676]
+layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="Prompt" type="Label" parent="Centre/Decision/Box"]
+[node name="Prompt" type="Label" parent="Centre/Decision/Box" unique_id=202408270]
 unique_name_in_owner = true
-text = ""
-horizontal_alignment = 1
+layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.84, 0.6, 1)
 theme_override_font_sizes/font_size = 19
+horizontal_alignment = 1
 
-[node name="Options" type="VBoxContainer" parent="Centre/Decision/Box"]
+[node name="Options" type="VBoxContainer" parent="Centre/Decision/Box" unique_id=1969932120]
 unique_name_in_owner = true
+layout_mode = 2
 theme_override_constants/separation = 6

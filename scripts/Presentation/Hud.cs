@@ -30,7 +30,10 @@ public partial class Hud : CanvasLayer
     ];
 
     private const string MouseLegend =
-        "Clic : avancer ou explorer   ·   Maj+clic : révéler sans entrer   ·   Ctrl+clic : creuser";
+        "Clic : avancer ou explorer   ·   Maj+clic : révéler sans entrer   ·   Ctrl+clic : creuser   ·   V : vue FPS ↔ vue du dessus";
+
+    private const string FpsLegend =
+        "Souris : regarder   ·   Clic : agir sur ce qui est devant vous   ·   Maj/Ctrl+clic : révéler/creuser   ·   Échap : vue du dessus";
 
     private Label _header = null!;
     private Label _notice = null!;
@@ -41,6 +44,11 @@ public partial class Hud : CanvasLayer
     private PanelContainer _decision = null!;
     private Label _prompt = null!;
     private VBoxContainer _options = null!;
+    private Control _crosshair = null!;
+
+    /// <summary>Whether this machine is currently looking through an Explorer's
+    /// eyes — changes which legend the hint line shows.</summary>
+    private bool _aiming;
 
     public override void _Ready()
     {
@@ -53,6 +61,7 @@ public partial class Hud : CanvasLayer
         _decision = GetNode<PanelContainer>("%Decision");
         _prompt = GetNode<Label>("%Prompt");
         _options = GetNode<VBoxContainer>("%Options");
+        _crosshair = GetNode<Control>("%Crosshair");
 
         _hint.Text = MouseLegend;
 
@@ -93,11 +102,21 @@ public partial class Hud : CanvasLayer
             button.Disabled = frozen;
         }
 
-        _hint.Text = game.IsOver ? "La partie est terminée." : MouseLegend;
+        _hint.Text = game.IsOver
+            ? "La partie est terminée.   ·   V : vue FPS ↔ vue du dessus"
+            : _aiming ? FpsLegend : MouseLegend;
     }
 
     /// <summary>The last thing that happened, or the reason nothing did.</summary>
     public void Say(string message) => _log.Text = message;
+
+    /// <summary>Shows or hides the centre crosshair a click acts on in the FPS view,
+    /// and swaps the hint line to match.</summary>
+    public void SetAiming(bool aiming)
+    {
+        _aiming = aiming;
+        _crosshair.Visible = aiming;
+    }
 
     private void ShowParty(GameState game)
     {
