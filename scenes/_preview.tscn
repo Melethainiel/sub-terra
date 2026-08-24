@@ -25,3 +25,10 @@ shadow_enabled = true
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_preview")
+
+[node name="Torch" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9

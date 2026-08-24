@@ -30,14 +30,14 @@ public partial class TokenView : Node3D
                 $"Explorer_{explorer.Id.Value}",
                 explorer.Cell,
                 Palette.For(explorer.Id),
-                height: explorer.IsDown ? 0.18f : 0.5f,
+                height: explorer.IsDown ? 0.5f : 1.7f,
                 offset: Fan(rank),
                 lying: explorer.IsDown);
         }
 
         foreach (var (cell, index) in game.Guardians.Select((cell, index) => (cell, index)))
         {
-            AddMeeple($"Guardian_{index}", cell, Palette.Guardian, height: 0.62f, offset: Fan(4 + index));
+            AddMeeple($"Guardian_{index}", cell, Palette.Guardian, height: 2.1f, offset: Fan(4 + index));
         }
 
         foreach (var (cell, _) in game.Board.Tiles)
@@ -53,7 +53,7 @@ public partial class TokenView : Node3D
     private static Vector3 Fan(int rank)
     {
         var angle = rank * Mathf.Tau / 6f;
-        var radius = rank == 0 ? 0f : 0.28f;
+        var radius = rank == 0 ? 0f : 0.55f;
         return new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
     }
 
@@ -62,7 +62,7 @@ public partial class TokenView : Node3D
         var node = new MeshInstance3D
         {
             Name = name,
-            Mesh = new CapsuleMesh { Radius = 0.16f, Height = height, RadialSegments = 12 },
+            Mesh = new CapsuleMesh { Radius = 0.28f, Height = height, RadialSegments = 12 },
             MaterialOverride = new StandardMaterial3D
             {
                 AlbedoColor = colour,
@@ -89,7 +89,7 @@ public partial class TokenView : Node3D
         AddChild(new MeshInstance3D
         {
             Name = name,
-            Mesh = new SphereMesh { Radius = 0.14f, Height = 0.28f, RadialSegments = 12, Rings = 6 },
+            Mesh = new SphereMesh { Radius = 0.32f, Height = 0.64f, RadialSegments = 12, Rings = 6 },
             MaterialOverride = new StandardMaterial3D
             {
                 AlbedoColor = colour,
@@ -97,7 +97,7 @@ public partial class TokenView : Node3D
                 Emission = colour,
                 EmissionEnergyMultiplier = 1.6f,
             },
-            Position = BoardView.ToWorld(cell) + new Vector3(0f, 0.3f, 0f),
+            Position = BoardView.ToWorld(cell) + new Vector3(0f, 0.7f, 0f),
         });
     }
 }

@@ -193,15 +193,56 @@ Chaque type de tuile est une scène de `scenes/board/` — `TileLava.tscn`,
 une tuile, c'est ouvrir sa scène dans l'éditeur. Rien de visuel ne vit dans le
 code.
 
-Ces scènes sont des **placeholders assumés** : des boîtes et des cylindres. Le
-jour où un `.glb` sort de Blender, il se dépose dans la scène correspondante,
-sans toucher au code.
+La roche n'est plus empilée en boîtes : elle est **taillée**. `tools/blender/
+cave_tile.py` part d'un bloc plein de 2 × 2 m, y creuse une galerie voûtée par
+côté ouvert et exporte le résultat en `.obj` dans `resources/models/`, que Godot
+importe comme un simple maillage. La scène de la tuile ne fait plus que poser ce
+maillage et glisser une dalle de sol dessous. Régénérer une forme :
 
-Chaque scène de tuile porte ses **quatre** murs, nommés `Wall_North` à
-`Wall_West`. `BoardView` masque ceux que la tuile ouvre. Rien ne pivote : la
-rotation choisie à la pose est déjà encodée dans `PlacedTile.OpenSides`, donc
-n'importe quel tracé s'exprime sans tourner le nœud — et une tuile modélisée
-n'aura pas besoin de quatre variantes.
+```
+blender --background --python tools/blender/cave_tile.py -- --shape Junction
+```
+
+Deux règles tiennent le raccord entre tuiles : toutes les galeries sont creusées
+avec le **même profil d'arche**, et le bruit qui accidente la roche s'éteint en
+approchant des quatre plans de bord. Deux tuiles voisines, quelle que soit leur
+rotation, présentent donc exactement la même ouverture.
+
+Cinq maillages suffisent à tout le catalogue : un par tracé, que les quinze
+scènes se partagent. Chacun ne porte que la **forme** de la galerie — 3 à 5 000
+triangles, lissés. La
+roche elle-même, ses plaques, ses joints et son grain, est l'affaire de
+`resources/shaders/rock.gdshader` : un champ cellulaire échantillonné en position
+monde y casse la paroi en plaques, chacune inclinée à sa façon, avec des joints
+sombres où perce la chaleur de la montagne. Deux avantages sur de la géométrie :
+c'est dix fois plus léger, et comme le champ est en coordonnées monde il traverse
+les jointures de tuiles sans se répéter. Une tentative précédente portait tout ça
+en maillage — 25 700 triangles par tuile, et ça se lisait comme des gravats.
+
+Les sols suivent le même partage : `floor_stone.gdshader` dalle le chemin, et
+chaque type de tuile n'est qu'un jeu de couleurs sur ce shader — la Lave laisse
+sa chaleur monter entre les dalles (`seam_strength`), le Gardien teinte les
+siennes de violet. C'est un `.tres` par type, pas un shader par type.
+
+Une tuile taillée déclare les côtés qu'elle **mure** par un marqueur
+`Rock/Wall_{côté}` : c'est ce que `BoardView.VerifyGeometry` compare au tracé que
+le moteur a posé. Les tuiles encore en boîtes nomment leurs murs pareil, la boîte
+faisant office de marqueur. La rotation, elle, est appliquée au nœud à la pose.
 
 Une scène manquante déclenche un avertissement et un repli sur `TileNormal`
 plutôt qu'un trou dans le temple.
+
+Deux scènes servent à regarder tout ça sans lancer de partie. `scenes/_gallery.tscn`
+pose les quinze tuiles en grille, chacune avec sa torche et son étiquette : c'est
+la vue d'ensemble du catalogue. `scenes/_preview.tscn` en tire une seule, à
+hauteur d'œil, et enregistre une image avant de rendre la main :
+
+```
+SUBTERRA_TILE=res://scenes/board/TileLava_Junction.tscn \
+SUBTERRA_SHOT=/tmp/tuile.png godot --path . res://scenes/_preview.tscn
+```
+
+Attention en ouvrant une tuile seule dans l'éditeur : la roche remplace
+l'éclairage de Godot par sa propre fonction `light()`, donc sans lumière dans la
+scène tout est noir. Les bascules « Preview Sun » et « Preview Environment » de
+la vue 3D suffisent.

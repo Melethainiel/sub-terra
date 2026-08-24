@@ -1,96 +1,72 @@
-[gd_scene load_steps=13 format=3]
-
-[ext_resource type="StandardMaterial3D" path="res://resources/materials/floor_ruins.tres" id="floor_ruins"]
+[gd_scene load_steps=12 format=3]
+[ext_resource type="ShaderMaterial" path="res://resources/materials/floor_ruins.tres" id="floor_ruins"]
+[ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
 [ext_resource type="StandardMaterial3D" path="res://resources/materials/rubble_rock.tres" id="rubble_rock"]
-[ext_resource type="StandardMaterial3D" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
-
-[sub_resource type="BoxMesh" id="Box_floor"]
-size = Vector3(2.0, 0.15, 2.0)
-
-[sub_resource type="BoxMesh" id="Box_corner"]
-size = Vector3(0.5, 1.5, 0.5)
-
-[sub_resource type="BoxMesh" id="Box_West"]
-size = Vector3(0.5, 1.5, 1.0)
+[ext_resource type="ArrayMesh" path="res://resources/models/cave_junction.obj" id="cave"]
 
 [sub_resource type="BoxMesh" id="Box_rubble0"]
-size = Vector3(0.34, 0.34, 0.34)
+size = Vector3(0.51, 0.51, 0.51)
 
 [sub_resource type="BoxMesh" id="Box_rubble1"]
-size = Vector3(0.26, 0.26, 0.26)
+size = Vector3(0.39, 0.39, 0.39)
 
 [sub_resource type="BoxMesh" id="Box_rubble2"]
-size = Vector3(0.2, 0.2, 0.2)
-
-[sub_resource type="BoxMesh" id="Box_rubble3"]
 size = Vector3(0.3, 0.3, 0.3)
 
+[sub_resource type="BoxMesh" id="Box_rubble3"]
+size = Vector3(0.45, 0.45, 0.45)
+
 [sub_resource type="BoxMesh" id="Box_rubble4"]
-size = Vector3(0.22, 0.22, 0.22)
+size = Vector3(0.33, 0.33, 0.33)
 
 [sub_resource type="BoxMesh" id="Box_rubble5"]
-size = Vector3(0.18, 0.18, 0.18)
+size = Vector3(0.27, 0.27, 0.27)
+
+[sub_resource type="BoxMesh" id="Box_floor"]
+size = Vector3(3, 0.22, 3)
 
 [node name="TileRuinsJunction" type="Node3D"]
 
 [node name="Floor" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.075, 0.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
 mesh = SubResource("Box_floor")
 material_override = ExtResource("floor_ruins")
 
+[node name="Cave" type="MeshInstance3D" parent="."]
+mesh = ExtResource("cave")
+material_override = ExtResource("wall_rock")
+
 [node name="Rock" type="Node3D" parent="."]
 
-[node name="Corner_NW" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, -0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
-
-[node name="Corner_NE" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0.75, -0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
-
-[node name="Corner_SE" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0.75, 0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
-
-[node name="Corner_SW" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, 0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
-
-[node name="Wall_West" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, 0.0)
-mesh = SubResource("Box_West")
-material_override = ExtResource("wall_rock")
+[node name="Wall_West" type="Marker3D" parent="Rock"]
 
 [node name="Rubble_0" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.28, 0.17, 0.16)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.42, 0.255, 0.24)
 mesh = SubResource("Box_rubble0")
 material_override = ExtResource("rubble_rock")
 
 [node name="Rubble_1" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, 0.13, -0.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.33, 0.195, -0.45)
 mesh = SubResource("Box_rubble1")
 material_override = ExtResource("rubble_rock")
 
 [node name="Rubble_2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.05, 0.1, 0.34)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.075, 0.15, 0.51)
 mesh = SubResource("Box_rubble2")
 material_override = ExtResource("rubble_rock")
 
 [node name="Rubble_3" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.15, 0.24)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.225, 0.36)
 mesh = SubResource("Box_rubble3")
 material_override = ExtResource("rubble_rock")
 
 [node name="Rubble_4" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.32, 0.11, -0.18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.48, 0.165, -0.27)
 mesh = SubResource("Box_rubble4")
 material_override = ExtResource("rubble_rock")
 
 [node name="Rubble_5" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 0.09, -0.02)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.075, 0.135, -0.03)
 mesh = SubResource("Box_rubble5")
 material_override = ExtResource("rubble_rock")
+

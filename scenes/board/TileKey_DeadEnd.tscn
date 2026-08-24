@@ -1,75 +1,39 @@
-[gd_scene load_steps=10 format=3]
-
-[ext_resource type="StandardMaterial3D" path="res://resources/materials/floor_rock.tres" id="floor_rock"]
+[gd_scene load_steps=7 format=3]
+[ext_resource type="ShaderMaterial" path="res://resources/materials/floor_rock.tres" id="floor_rock"]
+[ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
 [ext_resource type="StandardMaterial3D" path="res://resources/materials/sigil_key.tres" id="sigil_key"]
-[ext_resource type="StandardMaterial3D" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
-
-[sub_resource type="BoxMesh" id="Box_floor"]
-size = Vector3(2.0, 0.15, 2.0)
-
-[sub_resource type="BoxMesh" id="Box_corner"]
-size = Vector3(0.5, 1.5, 0.5)
-
-[sub_resource type="BoxMesh" id="Box_South"]
-size = Vector3(1.0, 1.5, 0.5)
-
-[sub_resource type="BoxMesh" id="Box_East"]
-size = Vector3(0.5, 1.5, 1.0)
-
-[sub_resource type="BoxMesh" id="Box_West"]
-size = Vector3(0.5, 1.5, 1.0)
+[ext_resource type="ArrayMesh" path="res://resources/models/cave_deadend.obj" id="cave"]
 
 [sub_resource type="CylinderMesh" id="Cyl_sigil"]
-top_radius = 0.3
-bottom_radius = 0.3
-height = 0.04
+top_radius = 0.45
+bottom_radius = 0.45
+height = 0.06
 radial_segments = 24
+
+[sub_resource type="BoxMesh" id="Box_floor"]
+size = Vector3(3, 0.22, 3)
 
 [node name="TileKeyDeadEnd" type="Node3D"]
 
 [node name="Floor" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -0.075, 0.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
 mesh = SubResource("Box_floor")
 material_override = ExtResource("floor_rock")
 
+[node name="Cave" type="MeshInstance3D" parent="."]
+mesh = ExtResource("cave")
+material_override = ExtResource("wall_rock")
+
 [node name="Rock" type="Node3D" parent="."]
 
-[node name="Corner_NW" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, -0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
+[node name="Wall_East" type="Marker3D" parent="Rock"]
 
-[node name="Corner_NE" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0.75, -0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
+[node name="Wall_South" type="Marker3D" parent="Rock"]
 
-[node name="Corner_SE" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0.75, 0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
-
-[node name="Corner_SW" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, 0.75)
-mesh = SubResource("Box_corner")
-material_override = ExtResource("wall_rock")
-
-[node name="Wall_South" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.75, 0.75)
-mesh = SubResource("Box_South")
-material_override = ExtResource("wall_rock")
-
-[node name="Wall_East" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.75, 0.75, 0.0)
-mesh = SubResource("Box_East")
-material_override = ExtResource("wall_rock")
-
-[node name="Wall_West" type="MeshInstance3D" parent="Rock"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.75, 0.75, 0.0)
-mesh = SubResource("Box_West")
-material_override = ExtResource("wall_rock")
+[node name="Wall_West" type="Marker3D" parent="Rock"]
 
 [node name="KeyToken" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 0.02, 0.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
 mesh = SubResource("Cyl_sigil")
 material_override = ExtResource("sigil_key")
+

@@ -4,9 +4,12 @@ Liste de référence pour ce portage, **dictée par Thibaud**, tuile par tuile. 
 prime sur toute déduction faite depuis le livret : c'est elle qui définit les
 tracés et les effets à implémenter.
 
-Conventions de géométrie (posées sur la tuile 1) : tuile 2 × 2 m, couloir 1 m de
-large, roche 1,5 m de haut et 0,5 m d'épaisseur, sol de 15 cm. Orientation de
-référence : la forme est décrite non tournée, la rotation est choisie à la pose.
+Conventions de géométrie : tuile **3 × 3 m**, à l'échelle d'un Explorateur adulte
+(œil à 1,60 m). Les couloirs ne sont pas des boîtes mais des galeries creusées
+dans un bloc plein : 1,5 m de large au sol, l'arche s'évase à 2 m d'ouverture à
+hauteur d'épaule puis se referme en ogive à **2,25 m**, et la roche monte à 2,7 m.
+Sol de 22 cm. Orientation de référence : la forme est décrite non tournée, la
+rotation est choisie à la pose.
 
 | № | Tuile | Tracé | × | Effet |
 |---|---|---|---|---|
@@ -43,7 +46,11 @@ tuiles Normale et Gardien.
 ## État de l'implémentation
 
 Les scènes de `scenes/board/` portent la géométrie et l'apparence de toutes ces
-tuiles. Côté moteur, **les onze effets sont joués** : le Pont ne supporte qu'un
+tuiles. Les quinze sont **taillées en grotte** : cinq maillages, un par tracé
+(`tools/blender/cave_tile.py`), que chaque scène pose avec le sol et les
+décorations de son type.
+
+Côté moteur, **les onze effets sont joués** : le Pont ne supporte qu'un
 Explorateur, la Clé se ramasse, le Gardien surgit à la pose, les Ruines arrivent
 sous leurs éboulis et s'effondrent sur leur chiffre, la Lave brûle sur la face
 Flamme, les pics se déclenchent à l'entrée et sur la face Piège, les fléchettes

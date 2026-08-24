@@ -1,0 +1,319 @@
+[gd_scene load_steps=17 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/board/TileBridge_Corridor.tscn" id="TileBridge_Corridor"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileDartTrap_Corner.tscn" id="TileDartTrap_Corner"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileEntrance_Crossroads.tscn" id="TileEntrance_Crossroads"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileEntrance_DeadEnd.tscn" id="TileEntrance_DeadEnd"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileGuardian_Corner.tscn" id="TileGuardian_Corner"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileGuardian_DeadEnd.tscn" id="TileGuardian_DeadEnd"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileKey_DeadEnd.tscn" id="TileKey_DeadEnd"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileLava_Crossroads.tscn" id="TileLava_Crossroads"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileLava_Junction.tscn" id="TileLava_Junction"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileNormal_Junction.tscn" id="TileNormal_Junction"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileRuins_Crossroads.tscn" id="TileRuins_Crossroads"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileRuins_Junction.tscn" id="TileRuins_Junction"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileSanctuary_Corridor.tscn" id="TileSanctuary_Corridor"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileSanctuary_DeadEnd.tscn" id="TileSanctuary_DeadEnd"]
+[ext_resource type="PackedScene" path="res://scenes/board/TileSpikeTrap_Crossroads.tscn" id="TileSpikeTrap_Crossroads"]
+
+[sub_resource type="Environment" id="Environment_gallery"]
+background_mode = 1
+background_color = Color(0.05, 0.03, 0.025, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.34, 0.22, 1)
+ambient_light_energy = 0.5
+tonemap_mode = 3
+
+[node name="Gallery" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_gallery")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 5)
+fov = 78.0
+
+[node name="TileBridge_Corridor" parent="." instance=ExtResource("TileBridge_Corridor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0)
+
+[node name="Torch" type="OmniLight3D" parent="TileBridge_Corridor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileBridge_Corridor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Bridge Corridor"
+
+[node name="TileDartTrap_Corner" parent="." instance=ExtResource("TileDartTrap_Corner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -0)
+
+[node name="Torch" type="OmniLight3D" parent="TileDartTrap_Corner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileDartTrap_Corner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "DartTrap Corner"
+
+[node name="TileEntrance_Crossroads" parent="." instance=ExtResource("TileEntrance_Crossroads")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -0)
+
+[node name="Torch" type="OmniLight3D" parent="TileEntrance_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileEntrance_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Entrance Crossroads"
+
+[node name="TileEntrance_DeadEnd" parent="." instance=ExtResource("TileEntrance_DeadEnd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -0)
+
+[node name="Torch" type="OmniLight3D" parent="TileEntrance_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileEntrance_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Entrance DeadEnd"
+
+[node name="TileGuardian_Corner" parent="." instance=ExtResource("TileGuardian_Corner")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, -0)
+
+[node name="Torch" type="OmniLight3D" parent="TileGuardian_Corner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileGuardian_Corner"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Guardian Corner"
+
+[node name="TileGuardian_DeadEnd" parent="." instance=ExtResource("TileGuardian_DeadEnd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -6)
+
+[node name="Torch" type="OmniLight3D" parent="TileGuardian_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileGuardian_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Guardian DeadEnd"
+
+[node name="TileKey_DeadEnd" parent="." instance=ExtResource("TileKey_DeadEnd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -6)
+
+[node name="Torch" type="OmniLight3D" parent="TileKey_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileKey_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Key DeadEnd"
+
+[node name="TileLava_Crossroads" parent="." instance=ExtResource("TileLava_Crossroads")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -6)
+
+[node name="Torch" type="OmniLight3D" parent="TileLava_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileLava_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Lava Crossroads"
+
+[node name="TileLava_Junction" parent="." instance=ExtResource("TileLava_Junction")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -6)
+
+[node name="Torch" type="OmniLight3D" parent="TileLava_Junction"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileLava_Junction"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Lava Junction"
+
+[node name="TileNormal_Junction" parent="." instance=ExtResource("TileNormal_Junction")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, -6)
+
+[node name="Torch" type="OmniLight3D" parent="TileNormal_Junction"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileNormal_Junction"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Normal Junction"
+
+[node name="TileRuins_Crossroads" parent="." instance=ExtResource("TileRuins_Crossroads")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -12)
+
+[node name="Torch" type="OmniLight3D" parent="TileRuins_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileRuins_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Ruins Crossroads"
+
+[node name="TileRuins_Junction" parent="." instance=ExtResource("TileRuins_Junction")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -12)
+
+[node name="Torch" type="OmniLight3D" parent="TileRuins_Junction"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileRuins_Junction"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Ruins Junction"
+
+[node name="TileSanctuary_Corridor" parent="." instance=ExtResource("TileSanctuary_Corridor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 0, -12)
+
+[node name="Torch" type="OmniLight3D" parent="TileSanctuary_Corridor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileSanctuary_Corridor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Sanctuary Corridor"
+
+[node name="TileSanctuary_DeadEnd" parent="." instance=ExtResource("TileSanctuary_DeadEnd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, -12)
+
+[node name="Torch" type="OmniLight3D" parent="TileSanctuary_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileSanctuary_DeadEnd"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "Sanctuary DeadEnd"
+
+[node name="TileSpikeTrap_Crossroads" parent="." instance=ExtResource("TileSpikeTrap_Crossroads")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 24, 0, -12)
+
+[node name="Torch" type="OmniLight3D" parent="TileSpikeTrap_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+light_color = Color(1, 0.69, 0.43, 1)
+light_energy = 4.5
+omni_range = 3.9
+omni_attenuation = 0.9
+
+[node name="Name" type="Label3D" parent="TileSpikeTrap_Crossroads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.6, 0)
+billboard = 1
+no_depth_test = true
+fixed_size = true
+pixel_size = 0.0012
+modulate = Color(1, 0.85, 0.6, 1)
+text = "SpikeTrap Crossroads"

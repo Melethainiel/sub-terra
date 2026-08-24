@@ -1,5 +1,19 @@
-[gd_resource type="StandardMaterial3D" format=3]
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://resources/shaders/floor_stone.gdshader" id="1_shader"]
 
 [resource]
-albedo_color = Color(0.376, 0.243, 0.165, 1)
-roughness = 1.0
+shader = ExtResource("1_shader")
+shader_parameter/stone_dark = Color(0.0616, 0.0476, 0.0364, 1)
+shader_parameter/stone_light = Color(0.22, 0.17, 0.13, 1)
+shader_parameter/slab_scale = 1.0
+shader_parameter/slab_variety = 0.55
+shader_parameter/joint_width = 0.055
+shader_parameter/joint_color = Color(0.015, 0.013, 0.016, 1)
+shader_parameter/seam_color = Color(1, 0.35, 0.08, 1)
+shader_parameter/seam_strength = 0.0
+shader_parameter/grain_scale = 4.7
+shader_parameter/grain_strength = 0.25
+shader_parameter/band_shadow = 0.2
+shader_parameter/band_mid = 0.5
+shader_parameter/band_lit = 1.1
