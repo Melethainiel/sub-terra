@@ -56,6 +56,24 @@ public partial class Hud : CanvasLayer
 
     private const float SpineWidth = 26f;
 
+    /// <summary>One party card's footprint, top centre — narrow enough that a full
+    /// six-strong party still reads as one row rather than spilling past the
+    /// screen's edges.</summary>
+    private const float PartyCardWidth = 100f;
+
+    private const float PartyCardHeight = 132f;
+
+    private const float PartyAvatarSize = 52f;
+
+    /// <summary>How far a card that isn't due to play rests below the one that
+    /// is — the "raised portrait" a turn-based fight puts forward, done here by
+    /// pushing everyone else down rather than lifting the current explorer up.</summary>
+    private const float PartyRaise = 16f;
+
+    /// <summary>Every roster name reads "L'…", "Le …" or "La …" — stripped before
+    /// an avatar's monogram is drawn from what follows.</summary>
+    private static readonly string[] FrenchArticles = ["L'", "Le ", "La ", "Les "];
+
     /// <summary>
     /// The Actions card is paper, not cave wall — the one part of the screen the
     /// temple itself never has to be, so it reads at a glance instead of fighting
@@ -99,7 +117,7 @@ public partial class Hud : CanvasLayer
 
     private Label _header = null!;
     private Label _notice = null!;
-    private VBoxContainer _party = null!;
+    private HBoxContainer _party = null!;
     private Label _log = null!;
     private Label _hint = null!;
     private PanelContainer _actions = null!;
@@ -124,7 +142,7 @@ public partial class Hud : CanvasLayer
     {
         _header = GetNode<Label>("%Header");
         _notice = GetNode<Label>("%Notice");
-        _party = GetNode<VBoxContainer>("%Party");
+        _party = GetNode<HBoxContainer>("%Party");
         _log = GetNode<Label>("%Log");
         _hint = GetNode<Label>("%Hint");
         _actions = GetNode<PanelContainer>("%Actions");
@@ -313,22 +331,240 @@ public partial class Hud : CanvasLayer
 
         foreach (var explorer in game.Explorers)
         {
-            var current = explorer.Id == game.CurrentExplorer.Id && !game.IsOver;
-
-            var label = new Label
-            {
-                Text = string.Join("   ", Badge(game, explorer), Hearts(explorer), Standing(game, explorer)),
-                MouseFilter = Control.MouseFilterEnum.Ignore,
-            };
-
-            // The line and the meeple are the same colour, so the roster reads as the board.
-            label.AddThemeColorOverride("font_color", current ? Palette.For(explorer.Id) : Palette.Faded);
-            label.AddThemeColorOverride("font_outline_color", Colors.Black);
-            label.AddThemeConstantOverride("outline_size", 5);
-            label.AddThemeFontSizeOverride("font_size", 16);
-
-            _party.AddChild(label);
+            _party.AddChild(BuildPartyCard(game, explorer));
         }
+    }
+
+    /// <summary>
+    /// One Explorer's card: an avatar placeholder, their name, their hearts, and
+    /// whatever badges apply — a leader's star, a carried item, or why they can no
+    /// longer act. The one due to play sits raised above the rest of the row and
+    /// lit by its own accent, the way a turn-based fight puts the active portrait
+    /// forward rather than leaving the roster to read as a plain list.
+    /// </summary>
+    private static Control BuildPartyCard(GameState game, Explorer explorer)
+    {
+        var current = explorer.Id == game.CurrentExplorer.Id && !game.IsOver;
+        var accent = Palette.For(explorer.Id);
+        var resting = explorer.IsDown || explorer.IsDead || explorer.HasEscaped;
+
+        // Nobody is actually lifted — the rest of the row is pushed down instead,
+        // which reads the same way and keeps every card's top edge easy to align.
+        var raise = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        raise.AddThemeConstantOverride("margin_top", current ? 0 : (int)PartyRaise);
+
+        var card = new PanelContainer
+        {
+            CustomMinimumSize = new Vector2(PartyCardWidth, PartyCardHeight),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            // Greys the whole card at once, the same trick the Actions card uses
+            // for one it can't be played from right now.
+            Modulate = resting ? new Color(1f, 1f, 1f, 0.55f) : Colors.White,
+        };
+
+        card.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = Parchment,
+            BorderColor = current ? accent : ParchmentBorder,
+            BorderWidthLeft = current ? 3 : 1,
+            BorderWidthTop = current ? 3 : 1,
+            BorderWidthRight = current ? 3 : 1,
+            BorderWidthBottom = current ? 3 : 1,
+            CornerRadiusTopLeft = 10,
+            CornerRadiusTopRight = 10,
+            CornerRadiusBottomLeft = 10,
+            CornerRadiusBottomRight = 10,
+            ContentMarginLeft = 6,
+            ContentMarginRight = 6,
+            ContentMarginTop = 6,
+            ContentMarginBottom = 6,
+        });
+
+        var layout = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        layout.AddThemeConstantOverride("separation", 3);
+
+        layout.AddChild(BuildAvatar(explorer, accent, current, explorer.Id == game.Leader.Id));
+
+        var nameLabel = new Label
+        {
+            Text = explorer.Name,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        nameLabel.AddThemeColorOverride("font_color", Ink);
+        nameLabel.AddThemeFontSizeOverride("font_size", 12);
+        layout.AddChild(nameLabel);
+
+        layout.AddChild(BuildHearts(explorer));
+
+        var statusLabel = new Label
+        {
+            Text = Standing(game, explorer, current),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        statusLabel.AddThemeColorOverride("font_color", Ink with { A = 0.65f });
+        statusLabel.AddThemeFontSizeOverride("font_size", 10);
+        layout.AddChild(statusLabel);
+
+        card.AddChild(layout);
+        raise.AddChild(card);
+        return raise;
+    }
+
+    /// <summary>
+    /// The avatar placeholder: a monogram on a tile tinted the Explorer's own
+    /// colour, standing in for the portrait art the project doesn't have yet. A
+    /// leader's star and a carried item both sit as small badges on its corners
+    /// rather than as more text squeezed under the name.
+    /// </summary>
+    private static Control BuildAvatar(Explorer explorer, Color accent, bool current, bool isLeader)
+    {
+        var slot = new Control
+        {
+            CustomMinimumSize = new Vector2(PartyAvatarSize, PartyAvatarSize),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+
+        var face = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        face.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        face.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = accent with { A = current ? 1f : 0.55f },
+            BorderColor = ParchmentBorder with { A = 0.6f },
+            BorderWidthLeft = 1,
+            BorderWidthTop = 1,
+            BorderWidthRight = 1,
+            BorderWidthBottom = 1,
+            CornerRadiusTopLeft = 8,
+            CornerRadiusTopRight = 8,
+            CornerRadiusBottomLeft = 8,
+            CornerRadiusBottomRight = 8,
+        });
+
+        var monogram = new Label
+        {
+            Text = Monogram(explorer.Name),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        monogram.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        monogram.AddThemeColorOverride("font_color", Colors.White);
+        monogram.AddThemeColorOverride("font_outline_color", Colors.Black);
+        monogram.AddThemeConstantOverride("outline_size", 4);
+        monogram.AddThemeFontSizeOverride("font_size", 22);
+        face.AddChild(monogram);
+
+        slot.AddChild(face);
+
+        if (isLeader)
+        {
+            slot.AddChild(BuildBadge("★", Palette.Key, Control.LayoutPreset.TopLeft));
+        }
+
+        if (explorer.Carried is { } item)
+        {
+            slot.AddChild(BuildBadge(
+                item == ItemKind.Key ? "◆" : "✦",
+                item == ItemKind.Key ? Palette.Key : Palette.Artefact,
+                Control.LayoutPreset.BottomRight));
+        }
+
+        return slot;
+    }
+
+    /// <summary>A small round badge overlapping one corner of the avatar — a
+    /// leader's star or a carried item, in the same colour the rest of the board
+    /// already uses for that thing.</summary>
+    private static Control BuildBadge(string glyph, Color tint, Control.LayoutPreset corner)
+    {
+        var badge = new PanelContainer
+        {
+            CustomMinimumSize = new Vector2(18, 18),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        badge.SetAnchorsAndOffsetsPreset(corner, Control.LayoutPresetMode.KeepSize, -6);
+        badge.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = tint,
+            BorderColor = ParchmentBorder,
+            BorderWidthLeft = 1,
+            BorderWidthTop = 1,
+            BorderWidthRight = 1,
+            BorderWidthBottom = 1,
+            CornerRadiusTopLeft = 9,
+            CornerRadiusTopRight = 9,
+            CornerRadiusBottomLeft = 9,
+            CornerRadiusBottomRight = 9,
+        });
+
+        var label = new Label
+        {
+            Text = glyph,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        label.AddThemeColorOverride("font_color", Ink);
+        label.AddThemeFontSizeOverride("font_size", 10);
+        badge.AddChild(label);
+
+        return badge;
+    }
+
+    /// <summary>Hearts as two tones on one row — spent ones don't vanish, they read
+    /// as empty pips, the way a paper sheet's own hearts get crossed off rather
+    /// than erased.</summary>
+    private static Control BuildHearts(Explorer explorer)
+    {
+        var row = new HBoxContainer
+        {
+            Alignment = BoxContainer.AlignmentMode.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        row.AddThemeConstantOverride("separation", 0);
+
+        var filled = new Label
+        {
+            Text = new string('♥', explorer.Health),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        filled.AddThemeColorOverride("font_color", Palette.Combat);
+        filled.AddThemeFontSizeOverride("font_size", 13);
+
+        var empty = new Label
+        {
+            Text = new string('♥', explorer.MaxHealth - explorer.Health),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        empty.AddThemeColorOverride("font_color", Ink with { A = 0.25f });
+        empty.AddThemeFontSizeOverride("font_size", 13);
+
+        row.AddChild(filled);
+        row.AddChild(empty);
+        return row;
+    }
+
+    /// <summary>
+    /// The roster's names are all "L'…", "Le …" or "La …" — a bare first letter
+    /// would read "L" on almost every card, so the article is stripped first, the
+    /// way a French index already would.
+    /// </summary>
+    private static string Monogram(string name)
+    {
+        var stripped = name;
+        foreach (var article in FrenchArticles)
+        {
+            if (stripped.StartsWith(article, StringComparison.Ordinal))
+            {
+                stripped = stripped[article.Length..];
+                break;
+            }
+        }
+
+        return stripped.Length > 0 ? stripped[..1].ToUpperInvariant() : "?";
     }
 
     private void ShowDecision(GameState game, bool mine)
@@ -574,34 +810,15 @@ public partial class Hud : CanvasLayer
         MouseFilter = Control.MouseFilterEnum.Ignore,
     };
 
-    private static string Badge(GameState game, Explorer explorer) => string.Concat(
-        explorer.Id == game.CurrentExplorer.Id && !game.IsOver ? "▶" : " ",
-        explorer.Id == game.Leader.Id ? "★" : " ",
-        " ",
-        explorer.Name);
-
-    private static string Hearts(Explorer explorer) =>
-        new string('♥', explorer.Health) + new string('·', explorer.MaxHealth - explorer.Health);
-
-    private static string Standing(GameState game, Explorer explorer)
+    /// <summary>The status line under a card's hearts — why they can't act, or how
+    /// much they still can this turn. Carrying something is shown as a badge on the
+    /// avatar instead, so this stays one short word.</summary>
+    private static string Standing(GameState game, Explorer explorer, bool current) => explorer switch
     {
-        var carried = explorer.Carried is { } item ? $"   porte {Say(item)}" : string.Empty;
-
-        return explorer switch
-        {
-            { HasEscaped: true } => "sorti du temple" + carried,
-            { IsDead: true } => "englouti",
-            { IsDown: true } => "à terre" + carried,
-            _ when explorer.Id == game.CurrentExplorer.Id && !game.IsOver =>
-                $"{game.ActionPoints} action(s)" + carried,
-            _ => carried.TrimStart(),
-        };
-    }
-
-    private static string Say(ItemKind item) => item switch
-    {
-        ItemKind.Key => "une Clé",
-        ItemKind.Artefact => "l'Artefact",
-        _ => item.ToString(),
+        { HasEscaped: true } => "sorti",
+        { IsDead: true } => "englouti",
+        { IsDown: true } => "à terre",
+        _ when current => $"{game.ActionPoints} PA",
+        _ => string.Empty,
     };
 }
