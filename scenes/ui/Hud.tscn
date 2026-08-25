@@ -33,53 +33,11 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 22
 theme_override_constants/margin_bottom = 16
 
-[node name="Rows" type="VBoxContainer" parent="Margin" unique_id=949379534]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 10
-
-[node name="Header" type="Label" parent="Margin/Rows" unique_id=1507094183]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.96, 0.86, 0.76, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 17
-text = "…"
-
-[node name="Notice" type="Label" parent="Margin/Rows" unique_id=301780276]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.72, 0.42, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 17
-
-[node name="Spacer" type="Control" parent="Margin/Rows" unique_id=962631591]
-layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="Log" type="Label" parent="Margin/Rows" unique_id=1412955981]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.78, 0.55, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 6
-theme_override_font_sizes/font_size = 17
-
-[node name="Hint" type="Label" parent="Margin/Rows" unique_id=1251332954]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.62, 0.57, 0.52, 1)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
-theme_override_constants/outline_size = 5
-theme_override_font_sizes/font_size = 14
-
-[node name="Actions" type="PanelContainer" parent="Margin/Rows" unique_id=1797141598]
+[node name="Col" type="VBoxContainer" parent="Margin" unique_id=949379534]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0
+size_flags_vertical = 0
 mouse_filter = 2
 
 [node name="PartyBar" type="CenterContainer" parent="."]
@@ -95,6 +53,22 @@ unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 14
+
+[node name="ActionsBar" type="CenterContainer" parent="."]
+anchors_preset = -1
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+offset_top = -190.0
+offset_bottom = -24.0
+mouse_filter = 2
+
+[node name="Actions" type="PanelContainer" parent="ActionsBar" unique_id=1797141598]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
 
 [node name="Crosshair" type="CenterContainer" parent="."]
 unique_name_in_owner = true

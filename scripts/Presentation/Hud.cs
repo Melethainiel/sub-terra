@@ -4,9 +4,12 @@ using SubTerra.Core.Game;
 namespace SubTerra.Presentation;
 
 /// <summary>
-/// The expedition down the side of the screen, its actions along the bottom, and —
-/// when the rules hand a tie to a player — the question in the middle of it. The HUD
-/// asks for commands and never carries them out itself.
+/// The whole screen the player reads by, built entirely from printed-card objects the
+/// way the physical game's own table would be: the status plaque, the alert and the
+/// last event as paper up in the corner, the party as portrait cards up top, the
+/// Actions card along the bottom with its own hint printed underneath it. Nothing here
+/// is bare text floating over the temple — every word sits on some piece of "paper".
+/// The HUD asks for commands and never carries them out itself.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
@@ -70,6 +73,15 @@ public partial class Hud : CanvasLayer
     /// pushing everyone else down rather than lifting the current explorer up.</summary>
     private const float PartyRaise = 16f;
 
+    /// <summary>One compartment's width on the status plaque — narrower than an
+    /// Actions column, since a number or a short word fits where an icon-and-name
+    /// pair needed more room.</summary>
+    private const float TrackerCompartmentWidth = 64f;
+
+    private const float TrackerHeight = 60f;
+
+    private const float TrackerSpineWidth = 22f;
+
     /// <summary>Every roster name reads "L'…", "Le …" or "La …" — stripped before
     /// an avatar's monogram is drawn from what follows.</summary>
     private static readonly string[] FrenchArticles = ["L'", "Le ", "La ", "Les "];
@@ -77,7 +89,8 @@ public partial class Hud : CanvasLayer
     /// <summary>
     /// The Actions card is paper, not cave wall — the one part of the screen the
     /// temple itself never has to be, so it reads at a glance instead of fighting
-    /// the dark 3D view behind it for contrast.
+    /// the dark 3D view behind it for contrast. Every other card in the HUD is cut
+    /// from the same paper.
     /// </summary>
     private static readonly Color Parchment = Color.Color8(222, 205, 172);
 
@@ -88,6 +101,25 @@ public partial class Hud : CanvasLayer
     private static readonly Color ParchmentBorder = Color.Color8(34, 25, 18);
 
     private static readonly Color Ink = Color.Color8(40, 29, 20);
+
+    /// <summary>The Notice ribbon's own tint — parchment pushed warmer, the way a
+    /// printed card marks the one entry that needs a second look without leaving
+    /// paper for a wholly different material.</summary>
+    private static readonly Color NoticeTint = Color.Color8(233, 201, 184);
+
+    /// <summary>
+    /// A fine paper grain, shared by every parchment surface in the HUD — the card
+    /// itself, its spine, a shaded column, a portrait's face — so none of them reads
+    /// as one dead-flat colour. Applied as a <c>Material</c> on the specific Control
+    /// that owns the fill; because a canvas_item shader only ever runs over pixels
+    /// that Control itself rasterises, it never bleeds past a rounded corner onto
+    /// the cave behind it, and it never touches the ink text or icons drawn by a
+    /// separate child Control layered on top.
+    /// </summary>
+    private static readonly ShaderMaterial Grain = new()
+    {
+        Shader = GD.Load<Shader>("res://resources/shaders/paper_grain.gdshader"),
+    };
 
     private const string MouseLegend =
         "Choisis une carte ci-dessous, puis clique la case visée   ·   V : vue FPS ↔ vue du dessus";
@@ -115,11 +147,17 @@ public partial class Hud : CanvasLayer
     private const string StirringLegend =
         "Molette ou R : changer de case Gardien   ·   Clic sur la case : l'y réveiller";
 
-    private Label _header = null!;
-    private Label _notice = null!;
+    private VBoxContainer _col = null!;
+    private Control _noticeRibbon = null!;
+    private Label _noticeLabel = null!;
+    private Label _roundValue = null!;
+    private Label _leaderValue = null!;
+    private Label _bagValue = null!;
+    private Label _eruptionValue = null!;
+    private readonly List<Label> _keyPips = [];
+    private Label _logLabel = null!;
+    private Label _hintBar = null!;
     private HBoxContainer _party = null!;
-    private Label _log = null!;
-    private Label _hint = null!;
     private PanelContainer _actions = null!;
     private PanelContainer _decision = null!;
     private Label _prompt = null!;
@@ -140,20 +178,289 @@ public partial class Hud : CanvasLayer
 
     public override void _Ready()
     {
-        _header = GetNode<Label>("%Header");
-        _notice = GetNode<Label>("%Notice");
+        _col = GetNode<VBoxContainer>("%Col");
         _party = GetNode<HBoxContainer>("%Party");
-        _log = GetNode<Label>("%Log");
-        _hint = GetNode<Label>("%Hint");
         _actions = GetNode<PanelContainer>("%Actions");
         _decision = GetNode<PanelContainer>("%Decision");
         _prompt = GetNode<Label>("%Prompt");
         _options = GetNode<VBoxContainer>("%Options");
         _crosshair = GetNode<Control>("%Crosshair");
 
-        _hint.Text = MouseLegend;
+        _decision.Material = Grain;
 
+        BuildStatusColumn();
         BuildActionsCard();
+    }
+
+    /// <summary>
+    /// The status column, top-left: the same three objects a table would actually
+    /// carry there — an alert ribbon (only when there is one), the expedition's own
+    /// tracker plaque, and the last event as a note scribbled and left to one side.
+    /// </summary>
+    private void BuildStatusColumn()
+    {
+        _col.AddThemeConstantOverride("separation", 12);
+
+        _col.AddChild(BuildNoticeRibbon());
+        _col.AddChild(BuildTracker());
+        _col.AddChild(BuildLogScrap());
+    }
+
+    /// <summary>
+    /// The alert ribbon: parchment pushed warmer, capped by a plain-coloured stripe
+    /// rather than rounded off like the rest of the paper, the way a card marks the
+    /// one entry that needs a second look. Hidden entirely when there is nothing to
+    /// say — never an empty strip of paper sitting there for no reason.
+    /// </summary>
+    private Control BuildNoticeRibbon()
+    {
+        var ribbon = new PanelContainer
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        ribbon.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = NoticeTint,
+            BorderColor = ParchmentBorder,
+            BorderWidthLeft = 2,
+            BorderWidthTop = 2,
+            BorderWidthRight = 2,
+            BorderWidthBottom = 2,
+            CornerRadiusBottomLeft = 6,
+            CornerRadiusBottomRight = 6,
+            ContentMarginLeft = 0,
+            ContentMarginRight = 0,
+            ContentMarginTop = 0,
+            ContentMarginBottom = 0,
+        });
+        ribbon.Material = Grain;
+
+        var layout = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        layout.AddThemeConstantOverride("separation", 0);
+
+        layout.AddChild(new ColorRect
+        {
+            Color = Palette.Choice,
+            CustomMinimumSize = new Vector2(0, 3),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        });
+
+        var pad = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        pad.AddThemeConstantOverride("margin_left", 12);
+        pad.AddThemeConstantOverride("margin_right", 12);
+        pad.AddThemeConstantOverride("margin_top", 8);
+        pad.AddThemeConstantOverride("margin_bottom", 8);
+
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        row.AddThemeConstantOverride("separation", 8);
+
+        var bang = new Label { Text = "!", MouseFilter = Control.MouseFilterEnum.Ignore };
+        bang.AddThemeColorOverride("font_color", Palette.Choice);
+        bang.AddThemeFontSizeOverride("font_size", 15);
+        row.AddChild(bang);
+
+        _noticeLabel = new Label
+        {
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _noticeLabel.AddThemeColorOverride("font_color", Ink);
+        _noticeLabel.AddThemeFontSizeOverride("font_size", 13);
+        row.AddChild(_noticeLabel);
+
+        pad.AddChild(row);
+        layout.AddChild(pad);
+        ribbon.AddChild(layout);
+
+        _noticeRibbon = ribbon;
+        return ribbon;
+    }
+
+    /// <summary>
+    /// The expedition's own tracker plaque: a spine down the left edge echoing the
+    /// Actions card's, then one compartment apiece for the round, the Chef, the bag,
+    /// the eruption and the keys — divided by the same thin rule, so it reads as the
+    /// Actions card's sibling rather than a different kind of object.
+    /// </summary>
+    private Control BuildTracker()
+    {
+        var card = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        card.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = Parchment,
+            BorderColor = ParchmentBorder,
+            BorderWidthLeft = 3,
+            BorderWidthTop = 3,
+            BorderWidthRight = 3,
+            BorderWidthBottom = 3,
+            CornerRadiusTopLeft = 10,
+            CornerRadiusTopRight = 10,
+            CornerRadiusBottomLeft = 10,
+            CornerRadiusBottomRight = 10,
+        });
+        card.Material = Grain;
+
+        var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        row.AddThemeConstantOverride("separation", 0);
+
+        var spine = new PanelContainer
+        {
+            CustomMinimumSize = new Vector2(TrackerSpineWidth, TrackerHeight),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        spine.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = ParchmentSpine,
+            CornerRadiusTopLeft = 7,
+            CornerRadiusBottomLeft = 7,
+        });
+        spine.Material = Grain;
+        row.AddChild(spine);
+        row.AddChild(Divider());
+
+        row.AddChild(BuildStat(out _roundValue, "Manche"));
+        row.AddChild(Divider());
+        row.AddChild(BuildStat(out _leaderValue, "Chef", valueFontSize: 11, width: TrackerCompartmentWidth * 1.6f));
+        row.AddChild(Divider());
+        row.AddChild(BuildStat(out _bagValue, "Sac"));
+        row.AddChild(Divider());
+        row.AddChild(BuildStat(out _eruptionValue, "Éruption"));
+        row.AddChild(Divider());
+        row.AddChild(BuildKeysCompartment());
+
+        card.AddChild(row);
+        return card;
+    }
+
+    /// <summary>One tracker compartment: a value and, printed underneath the way
+    /// the Actions card notes a cost, a short caption naming what it is.</summary>
+    private static Control BuildStat(out Label value, string caption, int valueFontSize = 16, float width = TrackerCompartmentWidth)
+    {
+        var col = new VBoxContainer
+        {
+            CustomMinimumSize = new Vector2(width, 0),
+            Alignment = BoxContainer.AlignmentMode.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        col.AddThemeConstantOverride("separation", 1);
+
+        value = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        value.AddThemeColorOverride("font_color", Ink);
+        value.AddThemeFontSizeOverride("font_size", valueFontSize);
+
+        var cap = new Label
+        {
+            Text = caption,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        cap.AddThemeColorOverride("font_color", Ink with { A = 0.65f });
+        cap.AddThemeFontSizeOverride("font_size", 9);
+
+        col.AddChild(value);
+        col.AddChild(cap);
+        return col;
+    }
+
+    /// <summary>The Clés compartment: a pip apiece, the way <see cref="BuildHearts"/>
+    /// already marks a heart spent instead of erasing it — filled and dimmed pips
+    /// share the same glyph rather than swapping to a hollow one.</summary>
+    private Control BuildKeysCompartment()
+    {
+        var col = new VBoxContainer
+        {
+            CustomMinimumSize = new Vector2(TrackerCompartmentWidth, 0),
+            Alignment = BoxContainer.AlignmentMode.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        col.AddThemeConstantOverride("separation", 1);
+
+        var row = new HBoxContainer
+        {
+            Alignment = BoxContainer.AlignmentMode.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        row.AddThemeConstantOverride("separation", 1);
+
+        for (var i = 0; i < GameState.KeysToUnlock; i++)
+        {
+            var pip = new Label { Text = "◆", MouseFilter = Control.MouseFilterEnum.Ignore };
+            pip.AddThemeFontSizeOverride("font_size", 14);
+            row.AddChild(pip);
+            _keyPips.Add(pip);
+        }
+
+        var cap = new Label
+        {
+            Text = "Clés",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        cap.AddThemeColorOverride("font_color", Ink with { A = 0.65f });
+        cap.AddThemeFontSizeOverride("font_size", 9);
+
+        col.AddChild(row);
+        col.AddChild(cap);
+        return col;
+    }
+
+    /// <summary>
+    /// The last event, left as a small note rather than a line of text — tilted a
+    /// touch and inset from the tracker plaque above it, the way a scrap actually
+    /// dropped on a table wouldn't square up with everything else.
+    /// </summary>
+    private Control BuildLogScrap()
+    {
+        var scrap = new PanelContainer
+        {
+            CustomMinimumSize = new Vector2(250, 0),
+            SizeFlagsHorizontal = Control.SizeFlags.ShrinkBegin,
+            RotationDegrees = -1.6f,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        scrap.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = ParchmentShade,
+            BorderColor = ParchmentBorder,
+            BorderWidthLeft = 1,
+            BorderWidthTop = 1,
+            BorderWidthRight = 1,
+            BorderWidthBottom = 1,
+            CornerRadiusTopLeft = 2,
+            CornerRadiusTopRight = 2,
+            CornerRadiusBottomLeft = 2,
+            CornerRadiusBottomRight = 2,
+            ShadowColor = new Color(0f, 0f, 0f, 0.35f),
+            ShadowSize = 6,
+            ContentMarginLeft = 12,
+            ContentMarginRight = 12,
+            ContentMarginTop = 8,
+            ContentMarginBottom = 8,
+        });
+        scrap.Material = Grain;
+
+        _logLabel = new Label
+        {
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _logLabel.AddThemeColorOverride("font_color", Ink);
+        _logLabel.AddThemeFontSizeOverride("font_size", 12);
+        scrap.AddChild(_logLabel);
+
+        // A left inset around the tilted note, the same "dropped by hand, not
+        // squared up with the plaque above" touch the rotation itself gives it.
+        var offset = new MarginContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        offset.AddThemeConstantOverride("margin_left", 16);
+        offset.AddChild(scrap);
+        return offset;
     }
 
     /// <summary>
@@ -161,7 +468,9 @@ public partial class Hud : CanvasLayer
     /// the dark of the temple on purpose, the same way a printed card would sit on
     /// the table rather than try to look like the cave itself — with a titled spine
     /// down the left edge and every action as a column of its own beside it, divided
-    /// by a thin rule instead of by a border each.
+    /// by a thin rule instead of by a border each. What a click on the board would
+    /// now do is printed on a strip along the card's own foot, rather than floating
+    /// as a separate line above it.
     /// </summary>
     private void BuildActionsCard()
     {
@@ -177,7 +486,15 @@ public partial class Hud : CanvasLayer
             CornerRadiusTopRight = 10,
             CornerRadiusBottomLeft = 10,
             CornerRadiusBottomRight = 10,
+            ContentMarginLeft = 0,
+            ContentMarginRight = 0,
+            ContentMarginTop = 0,
+            ContentMarginBottom = 0,
         });
+        _actions.Material = Grain;
+
+        var stack = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        stack.AddThemeConstantOverride("separation", 0);
 
         var row = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         row.AddThemeConstantOverride("separation", 0);
@@ -200,7 +517,40 @@ public partial class Hud : CanvasLayer
             _actionCards[action] = column;
         }
 
-        _actions.AddChild(row);
+        stack.AddChild(row);
+        stack.AddChild(BuildHintBar());
+        _actions.AddChild(stack);
+    }
+
+    /// <summary>The strip along the Actions card's own foot — what a click on the
+    /// board would now do, printed the way the card's cost and key already are,
+    /// instead of a line of text left to float above the card.</summary>
+    private Control BuildHintBar()
+    {
+        var bar = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        bar.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = ParchmentShade,
+            CornerRadiusBottomLeft = 7,
+            CornerRadiusBottomRight = 7,
+            ContentMarginLeft = 10,
+            ContentMarginRight = 10,
+            ContentMarginTop = 5,
+            ContentMarginBottom = 5,
+        });
+        bar.Material = Grain;
+
+        _hintBar = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _hintBar.AddThemeColorOverride("font_color", Ink with { A = 0.75f });
+        _hintBar.AddThemeFontSizeOverride("font_size", 12);
+        bar.AddChild(_hintBar);
+
+        return bar;
     }
 
     /// <summary>The title strip down the card's left edge — its own, lighter shade
@@ -220,6 +570,7 @@ public partial class Hud : CanvasLayer
             CornerRadiusTopLeft = 7,
             CornerRadiusBottomLeft = 7,
         });
+        spine.Material = Grain;
 
         var letters = new VBoxContainer
         {
@@ -263,15 +614,14 @@ public partial class Hud : CanvasLayer
     /// </param>
     public void Show(GameState game, bool mine, string notice, string? armed, Func<string, bool> canArm)
     {
-        _notice.Text = notice;
-        _notice.Visible = notice.Length > 0;
+        _noticeLabel.Text = notice;
+        _noticeRibbon.Visible = notice.Length > 0;
 
-        _header.Text = string.Join("   ·   ",
-            $"Manche {game.Round + 1}",
-            $"Chef ★ {game.Leader.Name}",
-            $"Sac {game.Bag.Count}",
-            $"Éruption {game.EruptionCountdown}",
-            $"Clés {game.KeysDeposited}/{GameState.KeysToUnlock}");
+        _roundValue.Text = (game.Round + 1).ToString();
+        _leaderValue.Text = game.Leader.Name;
+        _bagValue.Text = game.Bag.Count.ToString();
+        _eruptionValue.Text = game.EruptionCountdown.ToString();
+        UpdateKeyPips(game.KeysDeposited);
 
         ShowParty(game);
         ShowDecision(game, mine);
@@ -299,7 +649,7 @@ public partial class Hud : CanvasLayer
             }
         }
 
-        _hint.Text = (game.IsOver, game.Pending, mine, armed) switch
+        _hintBar.Text = (game.IsOver, game.Pending, mine, armed) switch
         {
             (true, _, _, _) => "La partie est terminée.   ·   V : vue FPS ↔ vue du dessus",
             (_, { Kind: DecisionKind.TileOrientation }, true, _) => TurningLegend,
@@ -312,7 +662,18 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>The last thing that happened, or the reason nothing did.</summary>
-    public void Say(string message) => _log.Text = message;
+    public void Say(string message) => _logLabel.Text = message;
+
+    /// <summary>Recolours the Clés pips to match how many are actually deposited —
+    /// filled and amber up to that many, dimmed after, the same trick <see
+    /// cref="BuildHearts"/> uses for a spent heart.</summary>
+    private void UpdateKeyPips(int deposited)
+    {
+        for (var i = 0; i < _keyPips.Count; i++)
+        {
+            _keyPips[i].AddThemeColorOverride("font_color", i < deposited ? Palette.Key : Ink with { A = 0.3f });
+        }
+    }
 
     /// <summary>Shows or hides the centre crosshair a click acts on in the FPS view,
     /// and swaps the hint line to match.</summary>
@@ -379,6 +740,7 @@ public partial class Hud : CanvasLayer
             ContentMarginTop = 6,
             ContentMarginBottom = 6,
         });
+        card.Material = Grain;
 
         var layout = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         layout.AddThemeConstantOverride("separation", 3);
@@ -697,6 +1059,7 @@ public partial class Hud : CanvasLayer
             CustomMinimumSize = new Vector2(ColumnWidth, ColumnHeight),
             MouseDefaultCursorShape = Control.CursorShape.PointingHand,
         };
+        column.Material = Grain;
 
         StyleBox rest = shaded ? ColumnFill(ParchmentShade, 1f, rounded: false) : new StyleBoxEmpty();
 
