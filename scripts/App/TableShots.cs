@@ -47,10 +47,13 @@ public partial class TableShots : Node
         await Settle(10);
         await Shoot("retour");
 
-        // Reveal without stepping in: the tile comes out of the bag and the table is
-        // asked which way round it goes, with the first answer already laid out.
+        // Reveal without stepping in: arm the Révéler card, then point it at the
+        // cell. The tile comes out of the bag and the table asks which way round it
+        // goes, with the first answer already laid out.
         var south = TempleSetup.EntranceCrossing.Neighbour(Direction.South);
-        ClickCell(table, south, reveal: true);
+        Press(Key.R);
+        await Settle(2);
+        ClickCell(table, south);
         await Settle(10);
         await Shoot("orientation");
 
@@ -109,9 +112,8 @@ public partial class TableShots : Node
     private static IEnumerable<Button> Answers(Node table) =>
         table.GetNode("Hud/Centre/Decision/Box/Options").GetChildren().OfType<Button>();
 
-    /// <summary>Clicks a cell of the temple, holding Shift to reveal without stepping in.</summary>
-    private static void ClickCell(Node table, Cell cell, bool reveal = false) =>
-        Push(table, cell, MouseButton.Left, reveal);
+    /// <summary>Clicks a cell of the temple — whatever card is armed plays against it.</summary>
+    private static void ClickCell(Node table, Cell cell) => Push(table, cell, MouseButton.Left);
 
     /// <summary>A notch of the wheel over a cell: turns the tile waiting to be laid.</summary>
     private static void Turn(Node table, Cell cell) => Push(table, cell, MouseButton.WheelUp);
@@ -122,7 +124,7 @@ public partial class TableShots : Node
     /// space the camera answers in, and it saves guessing at the window the desktop
     /// gave us.
     /// </summary>
-    private static void Push(Node table, Cell cell, MouseButton button, bool reveal = false)
+    private static void Push(Node table, Cell cell, MouseButton button)
     {
         var at = table.GetNode<Camera3D>("Camera3D").UnprojectPosition(BoardView.ToWorld(cell));
 
@@ -133,7 +135,6 @@ public partial class TableShots : Node
                 {
                     ButtonIndex = button,
                     Pressed = pressed,
-                    ShiftPressed = reveal,
                     Position = at,
                     GlobalPosition = at,
                 },

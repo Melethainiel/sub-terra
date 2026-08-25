@@ -84,6 +84,19 @@ public partial class AppRoot : Node3D
     /// board — the tile just drawn, turned the way that option would turn it.</summary>
     private int _option;
 
+    /// <summary>
+    /// The targeted action card currently in hand, waiting on a cell to point at —
+    /// "move", "explore", "reveal", "dig" or "run" — or <c>null</c> when none is
+    /// armed. Every other card fires the moment it is pressed; these need a second
+    /// click on the board, the same two-step the printed cards ask for.
+    /// </summary>
+    private string? _armed;
+
+    /// <summary>The directions Courir has built up so far, one click at a time — up
+    /// to three, sent together as a single <see cref="Run"/> once the route is
+    /// confirmed.</summary>
+    private readonly List<Direction> _runSteps = [];
+
     private ViewMode _viewMode = ViewMode.Overview;
     private float _overviewFov;
 
@@ -103,7 +116,7 @@ public partial class AppRoot : Node3D
         _overviewFov = _camera.Fov;
         _hud = GetNode<Hud>("Hud");
 
-        _hud.ActionRequested += action => Apply(Command(action));
+        _hud.ActionRequested += HandleAction;
         _hud.OptionChosen += option => Apply(new Decide(option));
         _hud.OptionPreviewed += ShowOption;
 
@@ -153,10 +166,19 @@ public partial class AppRoot : Node3D
             return;
         }
 
-        // Escape is the way out anyone tries first, and with the pointer captured
-        // and invisible it is the only one that doesn't need the pointer back to
-        // work. It surfaces rather than toggles: from underground you always come
-        // up, never the other way round.
+        // Escape is the way anyone tries first to back out of something. A card
+        // waiting on a cell comes off the table before anything else does — only a
+        // second Escape, with nothing armed, surfaces out of the FPS view.
+        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape } && _armed is not null)
+        {
+            Disarm();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        // With the pointer captured and invisible this is the only way out that
+        // doesn't need the pointer back to work. It surfaces rather than toggles:
+        // from underground you always come up, never the other way round.
         if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }
             && _viewMode == ViewMode.Fps)
         {
@@ -201,13 +223,19 @@ public partial class AppRoot : Node3D
                 break;
 
             case InputEventKey { Pressed: true, Echo: false } key when Bind(key.Keycode) is { } action:
-                Apply(Command(action));
+                HandleAction(action);
                 GetViewport().SetInputAsHandled();
                 break;
 
             case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } click
                 when CellUnder(_viewMode == ViewMode.Fps ? ScreenCentre() : click.Position) is { } cell:
-                ClickOn(cell, click.ShiftPressed, click.CtrlPressed);
+                ClickOn(cell);
+                GetViewport().SetInputAsHandled();
+                break;
+
+            // The other way to put a card back down without reaching for the keyboard.
+            case InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right } when _armed is not null:
+                Disarm();
                 GetViewport().SetInputAsHandled();
                 break;
         }
@@ -230,10 +258,7 @@ public partial class AppRoot : Node3D
 
     private Vector2 ScreenCentre() => GetViewport().GetVisibleRect().Size / 2f;
 
-    /// <summary>
-    /// The actions that need no target beyond the explorer's own tile. Everything that
-    /// points somewhere goes through the mouse instead.
-    /// </summary>
+    /// <summary>Every card, whether it came from a key or from a button.</summary>
     private static string? Bind(Key key) => key switch
     {
         Key.Space => "endturn",
@@ -242,10 +267,16 @@ public partial class AppRoot : Node3D
         Key.O => "overexert",
         Key.D => "drop",
         Key.P => "pickup",
+        Key.M => "move",
+        Key.E => "explore",
+        Key.R => "reveal",
+        Key.C => "dig",
+        Key.U => "run",
         _ => null,
     };
 
-    /// <summary>The same six actions, whether they came from a key or from a button.</summary>
+    /// <summary>The cards that need no target beyond the explorer's own tile — the
+    /// rest are armed rather than played outright, see <see cref="ToggleArm"/>.</summary>
     private GameCommand? Command(string action) => action switch
     {
         "endturn" => new EndTurn(),
@@ -258,12 +289,94 @@ public partial class AppRoot : Node3D
         _ => null,
     };
 
+    /// <summary>The cards that point somewhere on the board rather than firing on
+    /// the spot: pressing one arms it, and it takes a click on a cell to play it.</summary>
+    private static readonly HashSet<string> TargetedActions = ["move", "explore", "reveal", "dig", "run"];
+
+    /// <summary>Where a card, from either the HUD or the keyboard, ends up: armed if
+    /// it points somewhere, played on the spot otherwise.</summary>
+    private void HandleAction(string action)
+    {
+        if (TargetedActions.Contains(action))
+        {
+            ToggleArm(action);
+            return;
+        }
+
+        Apply(Command(action));
+    }
+
     /// <summary>
-    /// One click, several meanings: settle the tie the game is waiting on, step onto a
-    /// tile that is already there, uncover one where there is nothing yet, or — held
-    /// down — reveal without walking in, or dig out a neighbour.
+    /// Puts a targeted card in hand, or takes it back out. Pressing the card already
+    /// armed either cancels it, or — mid-route on Courir — confirms what has been
+    /// clicked so far rather than waiting for a third step.
     /// </summary>
-    private void ClickOn(Cell cell, bool revealOnly, bool dig)
+    private void ToggleArm(string action)
+    {
+        if (_game.IsOver || _game.Pending is not null)
+        {
+            return;
+        }
+
+        if (NotYourTurn() is { } refusal)
+        {
+            Say(refusal);
+            return;
+        }
+
+        if (_armed == action)
+        {
+            if (action == "run" && _runSteps.Count > 0)
+            {
+                SubmitRun();
+            }
+            else
+            {
+                Disarm();
+            }
+
+            return;
+        }
+
+        if (!CanArm(action))
+        {
+            Say("Rien à faire avec cette action pour l'instant.");
+            return;
+        }
+
+        _armed = action;
+        _runSteps.Clear();
+        Refresh();
+    }
+
+    /// <summary>Puts whatever card is in hand back down, unplayed.</summary>
+    private void Disarm()
+    {
+        _armed = null;
+        _runSteps.Clear();
+        Refresh();
+    }
+
+    /// <summary>
+    /// Whether a targeted card has anywhere to point right now — for comfort only:
+    /// the engine is what actually decides once a command is sent.
+    /// </summary>
+    private bool CanArm(string action) => action switch
+    {
+        "move" => _game.ActionPoints >= 1 && _game.Steps().Any(),
+        "explore" or "reveal" => _game.ActionPoints >= 1 && _game.Exits().Any(),
+        "dig" => _game.ActionPoints >= 2 && _game.DigTargets().Any(),
+        "run" => _game.ActionPoints >= 2 && _game.Steps().Any(),
+        _ => true,
+    };
+
+    /// <summary>
+    /// One click: settle the tie the game is waiting on if there is one, otherwise
+    /// play whatever card is currently armed against this cell. A card is spent the
+    /// moment it is clicked, valid target or not — same as pointing at the wrong
+    /// square on the table and being told so.
+    /// </summary>
+    private void ClickOn(Cell cell)
     {
         if (_game.Pending is { } decision)
         {
@@ -284,27 +397,106 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        if (_armed is null)
+        {
+            Say("Choisis d'abord une action.");
+            return;
+        }
+
         var from = _game.CurrentExplorer.Cell;
 
-        if (dig)
+        switch (_armed)
         {
-            Apply(new Dig(cell));
+            case "move":
+                if (from.DirectionTo(cell) is { } moveDirection)
+                {
+                    Apply(new Move(moveDirection));
+                }
+                else
+                {
+                    Say($"{cell} n'est pas voisine de {from}.");
+                }
+
+                Disarm();
+                break;
+
+            case "explore":
+                if (from.DirectionTo(cell) is { } exploreDirection)
+                {
+                    Apply(new Explore(exploreDirection));
+                }
+                else
+                {
+                    Say($"{cell} n'est pas voisine de {from}.");
+                }
+
+                Disarm();
+                break;
+
+            case "reveal":
+                if (from.DirectionTo(cell) is { } revealDirection)
+                {
+                    Apply(new Reveal(revealDirection));
+                }
+                else
+                {
+                    Say($"{cell} n'est pas voisine de {from}.");
+                }
+
+                Disarm();
+                break;
+
+            case "dig":
+                // Unlike the others, a dig target may be the explorer's own tile —
+                // no neighbour to check.
+                Apply(new Dig(cell));
+                Disarm();
+                break;
+
+            case "run":
+                ContinueRun(cell);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// One more step of Courir's route. Where the route would stand after the steps
+    /// already clicked is worked out from geometry alone — the engine is the one
+    /// that checks each step is actually open once the route is sent — so only the
+    /// very first step is shown as a hint on the board; the rest trust the click.
+    /// </summary>
+    private void ContinueRun(Cell cell)
+    {
+        var projected = _game.CurrentExplorer.Cell;
+
+        foreach (var step in _runSteps)
+        {
+            projected = projected.Neighbour(step);
+        }
+
+        if (projected.DirectionTo(cell) is not { } direction)
+        {
+            Say($"{cell} n'est pas voisine de {projected}.");
+            Disarm();
             return;
         }
 
-        if (from.DirectionTo(cell) is not { } direction)
+        _runSteps.Add(direction);
+
+        if (_runSteps.Count >= 3)
         {
-            Say($"{cell} n'est pas voisine de {from}.");
+            SubmitRun();
             return;
         }
 
-        if (_game.Board.IsOccupied(cell))
-        {
-            Apply(new Move(direction));
-            return;
-        }
+        Refresh();
+    }
 
-        Apply(revealOnly ? new Reveal(direction) : new Explore(direction));
+    /// <summary>Sends whatever of Courir's route has been clicked so far as one command.</summary>
+    private void SubmitRun()
+    {
+        Apply(new Run([.. _runSteps]));
+        Disarm();
     }
 
     /// <summary>
@@ -631,13 +823,23 @@ public partial class AppRoot : Node3D
         // A fresh question is shown with its first answer laid out; an answered one
         // leaves nothing hanging over the board.
         _option = 0;
+
+        // Whatever was armed answers a state of the game that has just moved on —
+        // a decision came up, the turn changed hands, the last action point went —
+        // so a card left in hand from before is put back down rather than trusted.
+        if (_armed is not null && (_game.Pending is not null || !Session.Owns(Due) || !CanArm(_armed)))
+        {
+            _armed = null;
+            _runSteps.Clear();
+        }
+
         _board.Render(_game.Board, Previewed());
         _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
         // Before the highlights: in the FPS view the camera decides what the
         // crosshair rests on, and that is the cell they have to light up.
         PositionCamera();
         _highlights.Render(Hints(), _hovered);
-        _hud.Show(_game, Session.Owns(Due) && _begun, Notice());
+        _hud.Show(_game, Session.Owns(Due) && _begun, Notice(), _armed, CanArm);
 
         // Nothing is badged for a table watching someone else turn a tile: the board
         // in front of them is bare, and a badge would point at a tile that isn't there.
@@ -749,8 +951,10 @@ public partial class AppRoot : Node3D
     }
 
     /// <summary>
-    /// What a click would do, cell by cell. The engine is the one asked — this only
-    /// paints the answer, and every command is checked again on the way in.
+    /// What the card currently in hand would do, cell by cell — nothing at all while
+    /// no card is armed, so a lit-up temple never promises more than one click will
+    /// actually spend. The engine is the one asked for the legal cells either way;
+    /// this only paints the answer, and every command is checked again on the way in.
     /// </summary>
     private Dictionary<Cell, HighlightView.Hint> Hints()
     {
@@ -777,19 +981,42 @@ public partial class AppRoot : Node3D
 
         var from = _game.CurrentExplorer.Cell;
 
-        foreach (var direction in _game.Exits())
+        switch (_armed)
         {
-            hints[from.Neighbour(direction)] = HighlightView.Hint.Unknown;
-        }
+            case "explore" or "reveal":
+                foreach (var direction in _game.Exits())
+                {
+                    hints[from.Neighbour(direction)] = HighlightView.Hint.Unknown;
+                }
 
-        foreach (var direction in _game.Steps())
-        {
-            hints[from.Neighbour(direction)] = HighlightView.Hint.Step;
-        }
+                break;
 
-        foreach (var cell in _game.DigTargets())
-        {
-            hints[cell] = HighlightView.Hint.Rubble;
+            case "move":
+                foreach (var direction in _game.Steps())
+                {
+                    hints[from.Neighbour(direction)] = HighlightView.Hint.Step;
+                }
+
+                break;
+
+            case "dig":
+                foreach (var cell in _game.DigTargets())
+                {
+                    hints[cell] = HighlightView.Hint.Rubble;
+                }
+
+                break;
+
+            case "run" when _runSteps.Count == 0:
+                // Only the first step of a route is legality the engine can vouch for
+                // in advance; the second and third are trusted to the click, then
+                // checked for real once the whole route is sent.
+                foreach (var direction in _game.Steps())
+                {
+                    hints[from.Neighbour(direction)] = HighlightView.Hint.Step;
+                }
+
+                break;
         }
 
         return hints;

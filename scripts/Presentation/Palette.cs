@@ -38,6 +38,17 @@ public static class Palette
     /// <summary>Something the game is waiting for you to point at.</summary>
     public static readonly Color Choice = Color.Color8(255, 96, 84);
 
+    /// <summary>An action card that draws blood — Attaquer.</summary>
+    public static readonly Color Combat = Color.Color8(214, 72, 58);
+
+    /// <summary>An action card spent on another Explorer, or on an object — Soigner,
+    /// Ramasser, Poser.</summary>
+    public static readonly Color Support = Color.Color8(102, 182, 176);
+
+    /// <summary>An action card that isn't about the temple at all — Se dépasser,
+    /// Finir le tour.</summary>
+    public static readonly Color Meta = Color.Color8(196, 168, 128);
+
     public static readonly Color Ink = Color.Color8(244, 224, 204);
 
     public static readonly Color Faded = Color.Color8(150, 138, 128);
