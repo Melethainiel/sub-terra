@@ -69,12 +69,19 @@ renversée sur la table.
 rien d'autre ne compte (couleurs, textures et réglages du fichier sont ignorés).
 Les noms reconnus sont :
 
-- `Skin`, `Cloth`, `Coat`, `Leather`, `Accent` ;
+- `Skin`, `Hair`, `Cloth`, `Coat`, `Leather`, `Accent` ;
 - `Metal`, `Wood`, `Flame` ;
 - `Ash`, `Armor`, `Bone`, `Ember`.
 
 Un nom inconnu déclenche un avertissement. Une nouvelle matière s'ajoute d'abord à
 `Miniature.Paints`.
+
+**La distribution actuelle** (`distribution.png`) : les dix Explorateurs et le
+Gardien, sculptés par `tools/blender/figure.py` — corps paramétrable, une
+silhouette et des accessoires propres à chacun. Ce sont des figurines honnêtes mais
+simples, faites pour être remplacées fichier par fichier par des modèles générés
+depuis des illustrations (Meshy, Tripo…), nettoyés et remis aux conventions
+ci-dessus.
 
 **En attendant** : tant que `<fiche>.glb` n'existe pas, `TokenView` pose
 l'esquisse `explorer_sketch.glb`. Les modèles peuvent donc arriver un par un.

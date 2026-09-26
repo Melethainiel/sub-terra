@@ -86,7 +86,7 @@ public partial class TokenView : Node3D
 
     private const string Figures = "res://resources/models/figures/";
     private const string ExplorerFigure = Figures + "explorer_sketch.glb";
-    private const string GuardianFigure = Figures + "guardian_sketch.glb";
+    private const string GuardianFigure = Figures + "guardian.glb";
 
     /// <summary>
     /// An Explorer's own model, named after their sheet (<c>guide.glb</c>…), or the

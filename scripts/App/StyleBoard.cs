@@ -27,6 +27,12 @@ public partial class StyleBoard : Node3D
         _toon = style is not ("figurine" or "hybrid");
         var table = OS.GetEnvironment("SUBTERRA_VIEW") == "table";
 
+        if (OS.GetEnvironment("SUBTERRA_VIEW") == "lineup")
+        {
+            await Lineup();
+            return;
+        }
+
         AddChild(new WorldEnvironment { Environment = Environment(table) });
         Light();
 
@@ -62,6 +68,54 @@ public partial class StyleBoard : Node3D
         {
             camera.LookAtFromPosition(new Vector3(0.1f, 1.6f, 4.3f), new Vector3(0f, 1.2f, 0f), Vector3.Up);
         }
+
+        for (var i = 0; i < 8; i++)
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        }
+
+        GetViewport().GetTexture().GetImage().SavePng(OS.GetEnvironment("SUBTERRA_SHOT"));
+        GetTree().Quit();
+    }
+
+    /// <summary>
+    /// The whole cast in a row, each in a seat's colour, as the game dresses them —
+    /// for judging them against one another rather than one at a time.
+    /// </summary>
+    private async System.Threading.Tasks.Task Lineup()
+    {
+        _hybrid = true;
+        AddChild(new WorldEnvironment { Environment = Environment(table: false) });
+        Light();
+
+        var cast = SubTerra.Core.Explorers.ExplorerRoster.All;
+        const float Spacing = 0.72f;
+
+        for (var index = 0; index < cast.Count; index++)
+        {
+            var x = (index - (cast.Count - 1) / 2f) * Spacing;
+            var stand = Miniature.Stand($"res://resources/models/figures/{cast[index].Id}.glb", Miniature.ExplorerBase, Palette.SeatColor(index), Palette.SeatColor(index));
+            stand.Position = new Vector3(x, 0f, 0f);
+            AddChild(stand);
+
+            AddChild(new Label3D
+            {
+                Text = cast[index].Name.Replace("La ", "").Replace("Le ", "").Replace("L'", ""),
+                FontSize = 40,
+                PixelSize = 0.0025f,
+                Modulate = new Color(0.95f, 0.9f, 0.8f),
+                OutlineSize = 8,
+                Position = new Vector3(x, -0.12f, 0.35f),
+            });
+        }
+
+        var guardian = Miniature.Stand("res://resources/models/figures/guardian.glb", Miniature.GuardianBase, ring: Palette.Guardian);
+        guardian.Position = new Vector3(cast.Count / 2f * Spacing + 0.35f, 0f, -0.6f);
+        AddChild(guardian);
+
+        var camera = new Camera3D { Fov = 34f, Current = true };
+        AddChild(camera);
+        camera.LookAtFromPosition(new Vector3(0.3f, 1.5f, 9.2f), new Vector3(0.3f, 0.85f, 0f), Vector3.Up);
 
         for (var i = 0; i < 8; i++)
         {

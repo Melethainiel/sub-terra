@@ -34,6 +34,7 @@ public static class Miniature
 
     public static readonly IReadOnlyDictionary<string, Paint> Paints = new Dictionary<string, Paint>
     {
+        ["Hair"] = new(new Color(0.42f, 0.24f, 0.12f), new Color(0.22f, 0.14f, 0.09f), 0f, 0.8f, 0f),
         ["Skin"] = new(new Color(0.96f, 0.72f, 0.55f), new Color(0.82f, 0.6f, 0.48f), 0f, 0.7f, 0f),
         ["Cloth"] = new(new Color(0.25f, 0.42f, 0.66f), new Color(0.2f, 0.26f, 0.34f), 0f, 0.9f, 0f),
         ["Coat"] = new(new Color(0.9f, 0.64f, 0.2f), new Color(0.52f, 0.45f, 0.29f), 0f, 0.85f, 0f),
