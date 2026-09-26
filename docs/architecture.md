@@ -165,10 +165,7 @@ et ce qui en est sorti. `F1` ouvre un aide-mémoire des règles, et la plaque
 Volcan suit la piste d'Éruption et la malédiction.
 
 Deux bancs d'essai jouent la vraie interface sans joueur : `_table_shots.tscn`
-et `_ability_shots.tscn`, qui imprime le journal et l'état après chaque étape.
-
-Avant la rejouée, les événements n'étaient qu'affichés en texte ; seules
-quelques tuiles les rejouaient. `BoardView` passe à chaque tuile
+et `_ability_shots.tscn`, qui imprime le journal et l'état après chaque étape. `BoardView` passe à chaque tuile
 qui implémente `ITileEventListener` les événements qui nomment sa case — le piège
 à pics donne son coup, les Ruines voient leurs éboulis tomber ou disparaître — et
 une tuile `IRubbleAwareTile` se recale sur `GameState.Rubble` à chaque redessin.
