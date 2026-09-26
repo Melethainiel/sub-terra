@@ -2,6 +2,7 @@
 [ext_resource type="ShaderMaterial" path="res://resources/materials/floor_entrance.tres" id="floor_entrance"]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
 [ext_resource type="ArrayMesh" path="res://resources/models/cave_deadend.obj" id="cave"]
+[ext_resource type="PackedScene" path="res://resources/models/props/entrance_stairs.glb" id="stairs"]
 
 [sub_resource type="BoxMesh" id="Box_floor"]
 size = Vector3(3, 0.22, 3)
@@ -25,3 +26,10 @@ material_override = ExtResource("wall_rock")
 
 [node name="Wall_West" type="Marker3D" parent="Rock"]
 
+[node name="Stairs" parent="." instance=ExtResource("stairs")]
+
+[node name="Daylight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0.5)
+light_color = Color(0.8, 0.88, 1, 1)
+light_energy = 0.7
+omni_range = 2.5

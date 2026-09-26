@@ -27,6 +27,12 @@ public partial class StyleBoard : Node3D
         _toon = style is not ("figurine" or "hybrid");
         var table = OS.GetEnvironment("SUBTERRA_VIEW") == "table";
 
+        if (OS.GetEnvironment("SUBTERRA_VIEW") == "pieces")
+        {
+            await Pieces();
+            return;
+        }
+
         if (OS.GetEnvironment("SUBTERRA_VIEW") == "lineup")
         {
             await Lineup();
@@ -68,6 +74,43 @@ public partial class StyleBoard : Node3D
         {
             camera.LookAtFromPosition(new Vector3(0.1f, 1.6f, 4.3f), new Vector3(0f, 1.2f, 0f), Vector3.Up);
         }
+
+        for (var i = 0; i < 8; i++)
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        }
+
+        GetViewport().GetTexture().GetImage().SavePng(OS.GetEnvironment("SUBTERRA_SHOT"));
+        GetTree().Quit();
+    }
+
+    /// <summary>The pieces that are not figures: the Key, the Artefact, a Key laid on its pillar.</summary>
+    private async System.Threading.Tasks.Task Pieces()
+    {
+        AddChild(new WorldEnvironment { Environment = Environment(table: false) });
+        Light();
+
+        var key = Miniature.Piece(Miniature.Key);
+        key.Scale = Vector3.One * 1.6f;
+        key.Position = new Vector3(-0.8f, 0.3f, 0f);
+        AddChild(key);
+
+        var artefact = Miniature.Piece(Miniature.Artefact);
+        artefact.Scale = Vector3.One * 1.3f;
+        artefact.Position = new Vector3(0f, 0.3f, 0f);
+        AddChild(artefact);
+
+        var pillar = GD.Load<PackedScene>("res://resources/models/props/key_pillar.glb").Instantiate<Node3D>();
+        pillar.Position = new Vector3(0.8f, 0f, 0f);
+        AddChild(pillar);
+        var laid = Miniature.Piece(Miniature.Key);
+        laid.Scale = Vector3.One * 1.4f;
+        laid.Position = new Vector3(0f, 0.97f, 0f);
+        pillar.AddChild(laid);
+
+        var camera = new Camera3D { Fov = 30f, Current = true };
+        AddChild(camera);
+        camera.LookAtFromPosition(new Vector3(0f, 1.1f, 3.4f), new Vector3(0f, 0.6f, 0f), Vector3.Up);
 
         for (var i = 0; i < 8; i++)
         {

@@ -34,6 +34,7 @@ public static class Miniature
 
     public static readonly IReadOnlyDictionary<string, Paint> Paints = new Dictionary<string, Paint>
     {
+        ["Gold"] = new(new Color(1f, 0.8f, 0.32f), new Color(0.85f, 0.62f, 0.22f), 0.9f, 0.3f, 0f),
         ["Hair"] = new(new Color(0.42f, 0.24f, 0.12f), new Color(0.22f, 0.14f, 0.09f), 0f, 0.8f, 0f),
         ["Skin"] = new(new Color(0.96f, 0.72f, 0.55f), new Color(0.82f, 0.6f, 0.48f), 0f, 0.7f, 0f),
         ["Cloth"] = new(new Color(0.25f, 0.42f, 0.66f), new Color(0.2f, 0.26f, 0.34f), 0f, 0.9f, 0f),
@@ -49,7 +50,24 @@ public static class Miniature
         ["Ember"] = new(new Color(1f, 0.38f, 0.08f), new Color(1f, 0.32f, 0.06f), 0f, 1f, 4f),
     };
 
+    public const string Key = "res://resources/models/props/key.glb";
+
+    public const string Artefact = "res://resources/models/props/artefact.glb";
+
     private static readonly Dictionary<string, PackedScene> Figures = [];
+
+    /// <summary>A piece that stands on no base — the Key, the Artefact — painted like the rest.</summary>
+    public static Node3D Piece(string path)
+    {
+        if (!Figures.TryGetValue(path, out var scene))
+        {
+            Figures[path] = scene = GD.Load<PackedScene>(path);
+        }
+
+        var piece = scene.Instantiate<Node3D>();
+        Dress(piece);
+        return piece;
+    }
 
     private static readonly Dictionary<(string Part, Color? Livery), Material> Painted = [];
 

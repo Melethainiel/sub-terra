@@ -40,6 +40,13 @@ public partial class BoardView : Node3D
 
     private const int RubblePieces = 3;
 
+    /// <summary>The broken rock the scatter and the breaches are made of
+    /// (tools/blender/props.py), about this wide before scaling.</summary>
+    private static readonly Lazy<Mesh[]> RockChunks = new(() =>
+        [.. Enumerable.Range(0, 3).Select(i => GD.Load<Mesh>($"res://resources/models/props/rock_chunk_{i}.obj"))]);
+
+    private const float RockChunkSize = 0.55f;
+
     private const float RubbleMinSize = 0.12f;
 
     private const float RubbleMaxSize = 0.3f;
@@ -120,7 +127,8 @@ public partial class BoardView : Node3D
         TempleBoard board,
         (Cell Cell, PlacedTile Tile)? pending = null,
         IReadOnlyList<GameEvent>? justHappened = null,
-        IReadOnlySet<Cell>? rubble = null)
+        IReadOnlySet<Cell>? rubble = null,
+        (Cell Hall, int Keys)? sanctuary = null)
     {
         foreach (var child in GetChildren())
         {
@@ -142,6 +150,28 @@ public partial class BoardView : Node3D
         foreach (var edge in board.Demolished)
         {
             AddBreach(edge);
+        }
+
+        if (sanctuary is { } lit && TileNode(lit.Hall) is { } hall)
+        {
+            SetKeys(hall, lit.Keys);
+        }
+    }
+
+    /// <summary>The Keys laid in the Sanctuary, each standing on top of its lock pillar.</summary>
+    private static void SetKeys(Node3D hall, int keys)
+    {
+        for (var slot = 0; slot < keys; slot++)
+        {
+            if (hall.GetNodeOrNull<Node3D>($"KeySlot_{slot}") is not { } pillar)
+            {
+                continue;
+            }
+
+            var key = Miniature.Piece(Miniature.Key);
+            key.Scale = Vector3.One * 1.4f;
+            key.Position = new Vector3(0f, 0.97f, 0f);
+            pillar.AddChild(key);
         }
     }
 
@@ -165,9 +195,10 @@ public partial class BoardView : Node3D
                 var size = 0.18f + 0.05f * (i % 3);
                 breach.AddChild(new MeshInstance3D
                 {
-                    Mesh = new BoxMesh { Size = new Vector3(size, size * 0.7f, size) },
+                    Mesh = RockChunks.Value[i % RockChunks.Value.Length],
                     MaterialOverride = material,
-                    Position = across * (-0.6f + 0.3f * i) + new Vector3(0f, size * 0.35f, 0f),
+                    Scale = Vector3.One * (size / RockChunkSize),
+                    Position = across * (-0.6f + 0.3f * i),
                     RotationDegrees = new Vector3(0f, 37f * i, 0f),
                 });
             }
@@ -323,9 +354,10 @@ public partial class BoardView : Node3D
             tileNode.AddChild(new MeshInstance3D
             {
                 Name = $"Rubble_{i}",
-                Mesh = new BoxMesh { Size = new Vector3(size, size * 0.7f, size) },
+                Mesh = RockChunks.Value[i % RockChunks.Value.Length],
                 MaterialOverride = material,
-                Position = new Vector3(Mathf.Cos(angle) * radius, size * 0.35f, Mathf.Sin(angle) * radius),
+                Scale = Vector3.One * (size / RockChunkSize),
+                Position = new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius),
                 RotationDegrees = new Vector3(0f, (float)rng.NextDouble() * 360f, 0f),
             });
         }

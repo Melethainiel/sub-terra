@@ -2,6 +2,7 @@
 [ext_resource type="ShaderMaterial" path="res://resources/materials/floor_entrance.tres" id="floor_entrance"]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
 [ext_resource type="ArrayMesh" path="res://resources/models/cave_crossroads.obj" id="cave"]
+[ext_resource type="PackedScene" path="res://resources/models/props/camp.glb" id="camp"]
 
 [sub_resource type="BoxMesh" id="Box_floor"]
 size = Vector3(3, 0.22, 3)
@@ -19,3 +20,4 @@ material_override = ExtResource("wall_rock")
 
 [node name="Rock" type="Node3D" parent="."]
 
+[node name="Camp" parent="." instance=ExtResource("camp")]

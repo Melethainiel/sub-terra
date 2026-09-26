@@ -1,17 +1,9 @@
 [gd_scene load_steps=5 format=3]
-[ext_resource type="ShaderMaterial" path="res://resources/materials/floor_bridge.tres" id="floor_bridge"]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
 [ext_resource type="ArrayMesh" path="res://resources/models/cave_corridor.obj" id="cave"]
-
-[sub_resource type="BoxMesh" id="Box_floor"]
-size = Vector3(3, 0.22, 3)
+[ext_resource type="PackedScene" path="res://resources/models/props/bridge.glb" id="bridge"]
 
 [node name="TileBridgeCorridor" type="Node3D"]
-
-[node name="Floor" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
-mesh = SubResource("Box_floor")
-material_override = ExtResource("floor_bridge")
 
 [node name="Cave" type="MeshInstance3D" parent="."]
 mesh = ExtResource("cave")
@@ -23,3 +15,4 @@ material_override = ExtResource("wall_rock")
 
 [node name="Wall_West" type="Marker3D" parent="Rock"]
 
+[node name="Bridge" parent="." instance=ExtResource("bridge")]

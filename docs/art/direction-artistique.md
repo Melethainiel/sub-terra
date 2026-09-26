@@ -91,6 +91,38 @@ Esquisses et futurs modèles sortent de `tools/blender/figure.py` :
 blender --background --python tools/blender/figure.py -- --out resources/models/figures
 ```
 
+## Les objets
+
+`tools/blender/props.py` fabrique tout ce qui n'est pas une figurine, dans
+`resources/models/props/`, en trois familles :
+
+- **Les pions** (`key.glb`, `artefact.glb`) sont peints comme les figurines, B+
+  compris, par les noms de leurs matériaux (`Gold`, `Ember`). Au sol, ils flottent
+  et tournent lentement dans leur propre lumière ; sur un pilier du Sanctuaire, une
+  Clé déposée se tient debout.
+- **L'habillage des tuiles** fait partie de la roche, pas des pièces. Il garde ses
+  couleurs de Blender, écrites « au jour » puis ramenées à la valeur de la roche
+  (`DUSK`) : la pierre du temple est presque noire, et un objet trop clair brûle en
+  blanc sous la torche. Ce qui luit garde sa couleur dans l'émission.
+  - Pont : planches et cordes au-dessus d'un gouffre de lave.
+  - Pièges : fléchettes dans des têtes sculptées, pics sur une grille.
+  - Case Gardien : cercle de runes.
+  - Tuile Clé : serrure dans le mur.
+  - Sanctuaire : piliers à serrure et autel.
+  - Entrée : camp et escalier vers le jour.
+- **Les maillages libres** (`rock_chunk_*.obj`, `spike.obj`) remplacent le maillage
+  de nœuds que le jeu anime par leur nom (`Debris_*`, `Spike_*`) : leur taille est
+  dans le maillage, jamais dans l'échelle du nœud, que l'animation remet à 1.
+
+Rien de ce qui est dessiné ne dépasse 1,20 m au-dessus du sol d'une tuile, la
+hauteur à laquelle la vue du dessus tranche les voûtes : au-delà, l'objet
+flotterait dans le vide. L'aperçu d'une tuile, éclairé comme la table :
+
+```
+SUBTERRA_VIEW=above SUBTERRA_TILE=res://scenes/board/TileBridge_Corridor.tscn \
+    SUBTERRA_SHOT=/tmp/pont.png godot --path . res://scenes/_preview.tscn
+```
+
 ## Limite connue
 
 La vue du dessus cadre tout le temple. Plus il s'étend, plus les figurines

@@ -1,14 +1,8 @@
 [gd_scene load_steps=7 format=3]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/floor_rock.tres" id="floor_rock"]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
-[ext_resource type="StandardMaterial3D" path="res://resources/materials/sigil_key.tres" id="sigil_key"]
 [ext_resource type="ArrayMesh" path="res://resources/models/cave_deadend.obj" id="cave"]
-
-[sub_resource type="CylinderMesh" id="Cyl_sigil"]
-top_radius = 0.45
-bottom_radius = 0.45
-height = 0.06
-radial_segments = 24
+[ext_resource type="PackedScene" path="res://resources/models/props/key_niche.glb" id="niche"]
 
 [sub_resource type="BoxMesh" id="Box_floor"]
 size = Vector3(3, 0.22, 3)
@@ -32,8 +26,4 @@ material_override = ExtResource("wall_rock")
 
 [node name="Wall_West" type="Marker3D" parent="Rock"]
 
-[node name="KeyToken" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
-mesh = SubResource("Cyl_sigil")
-material_override = ExtResource("sigil_key")
-
+[node name="KeyToken" parent="." instance=ExtResource("niche")]

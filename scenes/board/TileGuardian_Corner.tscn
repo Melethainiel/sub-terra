@@ -1,14 +1,8 @@
 [gd_scene load_steps=7 format=3]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/floor_guardian.tres" id="floor_guardian"]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
-[ext_resource type="StandardMaterial3D" path="res://resources/materials/sigil_guardian.tres" id="sigil_guardian"]
 [ext_resource type="ArrayMesh" path="res://resources/models/cave_corner.obj" id="cave"]
-
-[sub_resource type="CylinderMesh" id="Cyl_sigil"]
-top_radius = 0.63
-bottom_radius = 0.63
-height = 0.06
-radial_segments = 24
+[ext_resource type="PackedScene" path="res://resources/models/props/rune_circle.glb" id="runes"]
 
 [sub_resource type="BoxMesh" id="Box_floor"]
 size = Vector3(3, 0.22, 3)
@@ -30,8 +24,4 @@ material_override = ExtResource("wall_rock")
 
 [node name="Wall_West" type="Marker3D" parent="Rock"]
 
-[node name="GuardianSigil" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
-mesh = SubResource("Cyl_sigil")
-material_override = ExtResource("sigil_guardian")
-
+[node name="GuardianSigil" parent="." instance=ExtResource("runes")]

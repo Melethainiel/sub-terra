@@ -4,12 +4,8 @@
 [ext_resource type="StandardMaterial3D" path="res://resources/materials/spike_metal.tres" id="spike_metal"]
 [ext_resource type="ArrayMesh" path="res://resources/models/cave_crossroads.obj" id="cave"]
 [ext_resource type="Script" path="res://scripts/Presentation/SpikeTrapTile.cs" id="script"]
-
-[sub_resource type="CylinderMesh" id="Cyl_spike"]
-top_radius = 0
-bottom_radius = 0.105
-height = 0.45
-radial_segments = 6
+[ext_resource type="ArrayMesh" path="res://resources/models/props/spike.obj" id="spike"]
+[ext_resource type="PackedScene" path="res://resources/models/props/spike_grate.glb" id="grate"]
 
 [sub_resource type="BoxMesh" id="Box_floor"]
 size = Vector3(3, 0.22, 3)
@@ -29,47 +25,48 @@ material_override = ExtResource("wall_rock")
 [node name="Rock" type="Node3D" parent="."]
 
 [node name="Spike_0_0" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.225, -0.45)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.03, -0.45)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_0_1" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.225, 0)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.03, 0)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_0_2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.225, 0.45)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 0.03, 0.45)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_1_0" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.225, -0.45)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, -0.45)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_1_1" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.225, 0)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_1_2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.225, 0.45)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0.45)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_2_0" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.225, -0.45)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.03, -0.45)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_2_1" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.225, 0)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.03, 0)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
 [node name="Spike_2_2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.225, 0.45)
-mesh = SubResource("Cyl_spike")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.45, 0.03, 0.45)
+mesh = ExtResource("spike")
 material_override = ExtResource("spike_metal")
 
+[node name="SpikeGrate" parent="." instance=ExtResource("grate")]

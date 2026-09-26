@@ -729,6 +729,10 @@ public partial class AppRoot : Node3D
     /// </summary>
     private ExplorerId Due => _game.Pending is { } decision ? decision.Chooser : _game.CurrentExplorer.Id;
 
+    /// <summary>Where the Keys go, and how many are there, once the Sanctuary is found.</summary>
+    private (Cell Hall, int Keys)? Sanctuary() =>
+        _game.SanctuaryHall is { } hall ? (hall, _game.KeysDeposited) : null;
+
     private string? NotYourTurn() =>
         Session.Owns(Due) ? null : $"C'est à {_game.Explorers[Due.Value].Name} de jouer.";
 
@@ -987,7 +991,7 @@ public partial class AppRoot : Node3D
         }
 
         _option = option;
-        _board.Render(_game.Board, Previewed(), rubble: _game.Rubble);
+        _board.Render(_game.Board, Previewed(), rubble: _game.Rubble, sanctuary: Sanctuary());
         _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
         _hud.Highlight(_option);
     }
@@ -1056,7 +1060,7 @@ public partial class AppRoot : Node3D
             _runSteps.Clear();
         }
 
-        _board.Render(_game.Board, Previewed(), justHappened, _game.Rubble);
+        _board.Render(_game.Board, Previewed(), justHappened, _game.Rubble, Sanctuary());
         _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
 
         if (justHappened is not null)

@@ -151,18 +151,16 @@ public partial class TokenView : Node3D
     {
         var colour = item == ItemKind.Artefact ? Palette.Artefact : Palette.Key;
 
-        AddChild(new MeshInstance3D
-        {
-            Name = name,
-            Mesh = new SphereMesh { Radius = 0.32f, Height = 0.64f, RadialSegments = 12, Rings = 6 },
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoColor = colour,
-                EmissionEnabled = true,
-                Emission = colour,
-                EmissionEnergyMultiplier = 1.6f,
-            },
-            Position = BoardView.ToWorld(cell) + new Vector3(0f, 0.7f, 0f),
-        });
+        // Hovering and slowly turning above the floor, in its own light: a thing to
+        // be picked up, not part of the rock.
+        var piece = Miniature.Piece(item == ItemKind.Artefact ? Miniature.Artefact : Miniature.Key);
+        piece.Name = name;
+        piece.Scale = Vector3.One * (item == ItemKind.Artefact ? 1.3f : 1.6f);
+        piece.Position = BoardView.ToWorld(cell) + new Vector3(0f, 0.45f, 0f);
+        piece.AddChild(new OmniLight3D { LightColor = colour, LightEnergy = 1.2f, OmniRange = 1.6f, Position = new Vector3(0f, 0.3f, 0f) });
+        AddChild(piece);
+
+        var spin = piece.CreateTween().SetLoops();
+        spin.TweenProperty(piece, "rotation:y", Mathf.Tau, 6f).AsRelative();
     }
 }
