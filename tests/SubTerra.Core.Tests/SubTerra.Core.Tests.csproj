@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
+    <!-- Only newer runtimes may be installed; the rules have nothing net8-specific. -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 
   <ItemGroup>
