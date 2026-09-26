@@ -137,8 +137,9 @@ public partial class BoardView : Node3D
 
     /// <summary>
     /// Where the Sapeur knocked a wall down: the rock is carved in one piece and
-    /// cannot be opened after the fact, so the breach is marked instead — a spill of
-    /// broken stone across the join and a light showing through it. A stand-in until
+    /// cannot be opened after the fact, so the breach is marked instead — a glowing
+    /// opening through the rock, a spill of broken stone across the join and a light
+    /// showing through it. A stand-in until
     /// the tiles get walls that can actually come down.
     /// </summary>
     private void AddBreach(CellEdge edge)
@@ -162,12 +163,28 @@ public partial class BoardView : Node3D
             }
         }
 
+        // The gap itself: a glowing opening pushed through the rock on both sides of
+        // the join, low enough to stay under the vault cut of the view from above.
+        breach.AddChild(new MeshInstance3D
+        {
+            Name = "Opening",
+            Mesh = new BoxMesh { Size = new Vector3(1.3f, 1.1f, 1.3f) },
+            MaterialOverride = new StandardMaterial3D
+            {
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                AlbedoColor = Palette.Key with { A = 0.55f },
+            },
+            Position = new Vector3(0f, 0.55f, 0f),
+            Basis = Basis.LookingAt(across, Vector3.Up),
+        });
+
         breach.AddChild(new OmniLight3D
         {
-            Position = new Vector3(0f, 1.2f, 0f),
-            LightColor = Palette.Rubble,
+            Position = new Vector3(0f, 0.9f, 0f),
+            LightColor = Palette.Key,
             LightEnergy = 2.2f,
-            OmniRange = 2.6f,
+            OmniRange = 3f,
         });
 
         AddChild(breach);

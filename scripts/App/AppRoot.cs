@@ -74,6 +74,9 @@ public partial class AppRoot : Node3D
     private readonly Dictionary<ExplorerId, Direction> _facing = [];
 
     private GameState _game = null!;
+
+    /// <summary>This machine's game, to read — for the dev tools that drive a table.</summary>
+    internal GameState Game => _game;
     private BoardView _board = null!;
     private TokenView _tokens = null!;
     private HighlightView _highlights = null!;
@@ -1274,7 +1277,7 @@ public partial class AppRoot : Node3D
 
     private static string? Tell(GameEvent @event) => @event switch
     {
-        TileRevealed revealed => $"{Say(revealed.Tile.Kind)} révélée",
+        TileRevealed revealed => $"tuile révélée : {Say(revealed.Tile.Kind)}",
         TrapSprung trap => $"{Say(trap.Trap)} déclenché !",
         AbilityUsed used => ExplorerRoster.All
             .SelectMany(sheet => new[] { sheet.First, sheet.Second })

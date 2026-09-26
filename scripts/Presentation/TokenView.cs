@@ -104,12 +104,14 @@ public partial class TokenView : Node3D
         AddChild(node);
     }
 
-    /// <summary>The Combattante's Bouclier: a ring of gold around her meeple while it holds.</summary>
+    /// <summary>The Combattante's Bouclier: a halo of gold over her meeple while it holds —
+    /// above the head rather than round the waist, where the rest of a crowded tile
+    /// would hide it.</summary>
     private void AddShield(Cell cell, Vector3 offset) =>
         AddChild(new MeshInstance3D
         {
             Name = "Shield",
-            Mesh = new TorusMesh { InnerRadius = 0.36f, OuterRadius = 0.44f, Rings = 24, RingSegments = 8 },
+            Mesh = new TorusMesh { InnerRadius = 0.3f, OuterRadius = 0.4f, Rings = 24, RingSegments = 8 },
             MaterialOverride = new StandardMaterial3D
             {
                 AlbedoColor = Palette.Key,
@@ -117,7 +119,7 @@ public partial class TokenView : Node3D
                 Emission = Palette.Key,
                 EmissionEnergyMultiplier = 1.4f,
             },
-            Position = BoardView.ToWorld(cell) + offset + new Vector3(0f, 0.9f, 0f),
+            Position = BoardView.ToWorld(cell) + offset + new Vector3(0f, 2.05f, 0f),
         });
 
     private void AddToken(string name, Cell cell, ItemKind item)

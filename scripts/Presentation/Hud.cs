@@ -464,6 +464,7 @@ public partial class Hud : CanvasLayer
 
         _logLabel = new Label
         {
+            Name = "Log",
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
