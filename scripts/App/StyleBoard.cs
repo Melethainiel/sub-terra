@@ -37,9 +37,15 @@ public partial class StyleBoard : Node3D
 
     private bool _toon;
 
+    /// <summary>The painted miniature, with a finer ink line and brighter paint so it
+    /// still stands out of the rock seen from above.</summary>
+    private bool _hybrid;
+
     public override async void _Ready()
     {
-        _toon = OS.GetEnvironment("SUBTERRA_STYLE") != "figurine";
+        var style = OS.GetEnvironment("SUBTERRA_STYLE");
+        _hybrid = style == "hybrid";
+        _toon = style is not ("figurine" or "hybrid");
         var table = OS.GetEnvironment("SUBTERRA_VIEW") == "table";
 
         AddChild(new WorldEnvironment { Environment = Environment(table) });
@@ -175,7 +181,7 @@ public partial class StyleBoard : Node3D
 
                 if (Paints.TryGetValue(name, out var paint))
                 {
-                    mesh.SetSurfaceOverrideMaterial(surface, _toon ? Toon(name, paint) : Mini(paint));
+                    mesh.SetSurfaceOverrideMaterial(surface, _toon ? Toon(name, paint) : Mini(paint, _hybrid));
                 }
                 else
                 {
@@ -205,13 +211,22 @@ public partial class StyleBoard : Node3D
         return material;
     }
 
-    private static Material Mini((Color Toon, Color Mini, float Metal, float Rough, float Glow) paint)
+    private static Material Mini((Color Toon, Color Mini, float Metal, float Rough, float Glow) paint, bool hybrid = false)
     {
         var material = new ShaderMaterial { Shader = GD.Load<Shader>("res://resources/shaders/styles/painted_mini.gdshader") };
-        material.SetShaderParameter("albedo", paint.Mini);
+        var colour = hybrid ? paint.Mini.Lerp(paint.Toon, 0.45f) : paint.Mini;
+        material.SetShaderParameter("albedo", colour);
+
+        if (hybrid && paint.Glow == 0f)
+        {
+            var ink = new ShaderMaterial { Shader = GD.Load<Shader>("res://resources/shaders/styles/ink_outline.gdshader") };
+            ink.SetShaderParameter("thickness", 0.016f);
+            material.NextPass = ink;
+        }
+
         material.SetShaderParameter("metallic", paint.Metal);
         material.SetShaderParameter("roughness", paint.Rough);
-        material.SetShaderParameter("emission", paint.Mini * paint.Glow);
+        material.SetShaderParameter("emission", colour * paint.Glow);
         return material;
     }
 }
