@@ -40,9 +40,11 @@ plutôt qu'un bricolage par capacité :
 
 - **Explorateur visible, à N cases ou moins** (Guérir, Ranimer). « Visible »
   au sens §6.4 des règles : ligne droite à travers des cases dégagées, bloquée
-  par les murs et les Éboulis. Aucune fonction de ligne de vue n'existe encore
-  dans `SubTerra.Core` — à écrire avant la première de ces deux capacités,
-  les deux s'en serviront.
+  par les murs et les Éboulis. La brique existe :
+  `GameState.VisibleFrom(case, portée)` rend la case d'origine puis chaque
+  ligne droite, de la plus proche à la plus lointaine ; un mur l'arrête, une
+  brèche de Démolition la laisse passer, et une tuile sous Éboulis n'est ni
+  vue ni traversée. La géométrie seule est dans `TempleBoard.VisibleFrom`.
 - **Case visible en ligne droite, à N cases ou moins** (Lunette de visée, Tir
   de précision). Même brique de ligne de vue que ci-dessus, appliquée à une
   case plutôt qu'à un Explorateur.
@@ -114,9 +116,9 @@ une carte de plus dans le HUD, sur le modèle de celles déjà en place.
 
 ## 5. Un ordre qui évite de refaire le travail
 
-1. **Ligne de vue** (§2) — sans elle, six capacités sur vingt (Lunette de
-   visée, Tir de précision, Guérir, Ranimer si limité en portée) restent
-   bloquées.
+1. ~~**Ligne de vue** (§2)~~ — faite (`GameState.VisibleFrom`). Elle
+   débloque Lunette de visée, Tir de précision, Guérir, et Ranimer si sa
+   portée s'avère limitée.
 2. **Soigner à distance** (§3) avec Guérir et Ranimer, pendant que la ligne
    de vue est encore fraîche.
 3. **Les capacités passives** (Agile, Vigilance, Survivante, Aventurière) —

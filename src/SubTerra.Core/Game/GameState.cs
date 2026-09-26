@@ -269,6 +269,14 @@ public sealed class GameState
         }
     }
 
+    /// <summary>
+    /// The tiles visible from <paramref name="origin"/> within <paramref name="range"/>
+    /// tiles, the origin included (§6.4): straight lines through clear tiles, stopped
+    /// by walls and by rubble — a buried tile is not seen at all.
+    /// </summary>
+    public IEnumerable<Cell> VisibleFrom(Cell origin, int range) =>
+        Board.VisibleFrom(origin, range, _rubble.Contains);
+
     /// <summary>The rubble within reach of the current explorer: their tile, or a neighbour.</summary>
     public IEnumerable<Cell> DigTargets() =>
         Board.ConnectedNeighbours(CurrentExplorer.Cell)

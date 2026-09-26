@@ -203,6 +203,40 @@ public sealed class TempleBoard
         return null;
     }
 
+    /// <summary>
+    /// The tiles one sees from <paramref name="origin"/> in a straight line, at most
+    /// <paramref name="range"/> tiles away: the origin itself first, then each of the
+    /// four lines outward in north, east, south, west order, nearest first.
+    /// </summary>
+    /// <remarks>
+    /// A line runs on while each tile connects to the next, so a wall stops it and a
+    /// demolished one lets it through. A tile <paramref name="opaque"/> names — one
+    /// buried under rubble — is not seen, and nothing beyond it is either. The origin
+    /// is always seen: whoever stands there is looking out of it, whatever lies on it.
+    /// </remarks>
+    public IEnumerable<Cell> VisibleFrom(Cell origin, int range, Func<Cell, bool>? opaque = null)
+    {
+        yield return origin;
+
+        foreach (var direction in DirectionExtensions.All)
+        {
+            var cell = origin;
+
+            for (var distance = 1; distance <= range; distance++)
+            {
+                var next = cell.Neighbour(direction);
+
+                if (!AreConnected(cell, next) || (opaque is not null && opaque(next)))
+                {
+                    break;
+                }
+
+                yield return next;
+                cell = next;
+            }
+        }
+    }
+
     private static List<Cell> Retrace(Dictionary<Cell, Cell> cameFrom, Cell origin, Cell target)
     {
         var path = new List<Cell>();
