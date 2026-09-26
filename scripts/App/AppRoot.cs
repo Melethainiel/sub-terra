@@ -999,6 +999,25 @@ public partial class AppRoot : Node3D
         // leaves nothing hanging over the board.
         _option = 0;
 
+        // Illuminer, Sprinter and Excaver buy a common action to take there and then:
+        // its card is put straight in hand, and again after each one taken while any
+        // are left. Only when what was granted changes, so Échap still puts it down —
+        // and not while a question stands, or the tile being turned would swallow the
+        // change and the card would never come back.
+        if (_game.Granted != _lastGranted && _game.Pending is null)
+        {
+            _lastGranted = _game.Granted;
+
+            if (_game.Granted is { } granted && Session.Owns(Due))
+            {
+                _armed = CardFor(granted.Action);
+                _runSteps.Clear();
+            }
+        }
+
+        // Checked after the grant: a free action with nowhere left to go is put
+        // down like any other card.
+        //
         // Whatever was armed answers a state of the game that has just moved on —
         // a decision came up, the turn changed hands, the last action point went —
         // so a card left in hand from before is put back down rather than trusted.
@@ -1007,20 +1026,6 @@ public partial class AppRoot : Node3D
             _armed = null;
             _orderee = null;
             _runSteps.Clear();
-        }
-
-        // Illuminer, Sprinter and Excaver buy a common action to take there and then:
-        // its card is put straight in hand, and again after each one taken while any
-        // are left. Only when what was granted changes, so Échap still puts it down.
-        if (_game.Granted != _lastGranted)
-        {
-            _lastGranted = _game.Granted;
-
-            if (_game.Granted is { } granted && _game.Pending is null && Session.Owns(Due))
-            {
-                _armed = CardFor(granted.Action);
-                _runSteps.Clear();
-            }
         }
 
         _board.Render(_game.Board, Previewed(), justHappened, _game.Rubble);

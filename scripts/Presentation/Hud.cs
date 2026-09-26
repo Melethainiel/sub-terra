@@ -181,8 +181,9 @@ public partial class Hud : CanvasLayer
 
     private HBoxContainer _abilityRow = null!;
 
-    /// <summary>Whose abilities the columns currently show.</summary>
-    private ExplorerId? _abilitiesOf;
+    /// <summary>Whose abilities the columns currently show, and how many uses they had
+    /// left — a column is rebuilt when either changes.</summary>
+    private string? _abilitiesShown;
 
     /// <summary>The options as written, so the one laid out on the board can be
     /// badged without the badge ending up in the next label.</summary>
@@ -670,9 +671,12 @@ public partial class Hud : CanvasLayer
             }
         }
 
-        if (_abilitiesOf != game.CurrentExplorer.Id)
+        var shown = $"{game.CurrentExplorer.Id}:{UsesLeft(game, 0)}:{UsesLeft(game, 1)}";
+
+        if (_abilitiesShown != shown)
         {
-            BuildAbilityColumns(game.CurrentExplorer);
+            _abilitiesShown = shown;
+            BuildAbilityColumns(game);
         }
 
         foreach (var (action, card) in _abilityCards)
@@ -695,6 +699,11 @@ public partial class Hud : CanvasLayer
             (_, null, true, not null) => TargetLegend,
             _ => _aiming ? FpsLegend : MouseLegend,
         };
+
+        if (mine && game.Pending is null)
+        {
+            _hintBar.Text = GrantedLine(game) + _hintBar.Text;
+        }
     }
 
     /// <summary>
@@ -702,7 +711,7 @@ public partial class Hud : CanvasLayer
     /// keyed <c>1</c> and <c>2</c> and tinted with their domain. A passive one is
     /// printed too — it is worth knowing it is there — but never lights up.
     /// </summary>
-    private void BuildAbilityColumns(Explorer explorer)
+    private void BuildAbilityColumns(GameState game)
     {
         foreach (var child in _abilityRow.GetChildren())
         {
@@ -710,9 +719,8 @@ public partial class Hud : CanvasLayer
         }
 
         _abilityCards.Clear();
-        _abilitiesOf = explorer.Id;
 
-        if (explorer.Sheet is not { } sheet)
+        if (game.CurrentExplorer.Sheet is not { } sheet)
         {
             return;
         }
@@ -723,7 +731,9 @@ public partial class Hud : CanvasLayer
             var column = BuildColumn(
                 ability.Name,
                 ability.IsPassive ? "◌" : "✦",
-                ability.Cost,
+                UsesLeft(game, index) is { } left
+                    ? $"{ability.Cost.Split(',')[0]} ×{left}"
+                    : ability.Cost,
                 (index + 1).ToString(),
                 Palette.For(sheet.Domain),
                 targeted: !ability.IsPassive,
@@ -736,6 +746,21 @@ public partial class Hud : CanvasLayer
             _abilityCards[action] = column;
         }
     }
+
+    /// <summary>How many uses the current explorer's first or second ability has left,
+    /// for those the rules count.</summary>
+    private static int? UsesLeft(GameState game, int index) => game.CurrentExplorer.Sheet is { } sheet
+        ? game.UsesLeft(game.CurrentExplorer.Id, index == 0 ? sheet.First.Id : sheet.Second.Id)
+        : null;
+
+    /// <summary>What Illuminer, Sprinter or Excaver left to take, as the hint bar says it.</summary>
+    private static string GrantedLine(GameState game) => game.Granted switch
+    {
+        { Action: GrantedAction.Reveal, Remaining: var left } => $"Offert : {left} × Révéler   ·   ",
+        { Action: GrantedAction.Move, Remaining: var left } => $"Offert : {left} × Se déplacer   ·   ",
+        { Action: GrantedAction.Dig, Remaining: var left } => $"Offert : {left} × Creuser   ·   ",
+        _ => string.Empty,
+    };
 
     /// <summary>The last thing that happened, or the reason nothing did.</summary>
     public void Say(string message) => _logLabel.Text = message;

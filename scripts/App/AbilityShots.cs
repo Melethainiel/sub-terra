@@ -57,6 +57,19 @@ public partial class AbilityShots : Node
             await Shoot("illuminer");
         });
 
+        await Scenario("sprinter", ["gredin", "guide", "contremaitre"], async () =>
+        {
+            Press(Key.Key1);
+            await Settle(3);
+            Report("Sprinter joué");
+            Click(Start.Neighbour(Direction.West));
+            await Settle(3);
+            Report("premier pas offert — Se déplacer doit être de nouveau en main");
+            Click(Start);
+            await Settle(3);
+            Report("second pas offert");
+        });
+
         await Scenario("ordonner", ["aristocrate", "gredin", "guide"], async () =>
         {
             Press(Key.Key1);
