@@ -21,7 +21,6 @@ signal command_received(command: String, params: Dictionary)
 func _ready() -> void:
 	name = "MCPRuntime"
 	_start_server()
-	print("[MCP Runtime] Autoload ready, server starting on port %d" % _port)
 
 
 func _process(_delta: float) -> void:
@@ -61,8 +60,13 @@ func _process(_delta: float) -> void:
 
 
 func _start_server() -> void:
+	# Anyone reaching this port can set properties, call methods and inject input:
+	# never in a shipped build, and never beyond this machine.
+	if not OS.is_debug_build():
+		_enabled = false
+		return
 	_server = TCPServer.new()
-	var error = _server.listen(_port)
+	var error = _server.listen(_port, "127.0.0.1")
 	if error != OK:
 		push_error("[MCP Runtime] Failed to start server on port %d: %s" % [_port, error])
 		_enabled = false
