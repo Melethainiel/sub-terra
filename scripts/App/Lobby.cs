@@ -1,60 +1,60 @@
 using Godot;
 using SubTerra.Core.Explorers;
 using SubTerra.Core.Game;
+using SubTerra.Presentation;
 
 namespace SubTerra.App;
 
 /// <summary>
 /// Where a party is put together: alone, or with others over the network. The host
 /// owns the truth — claims are asked of it, and it hands the agreed party back to
-/// everyone before the temple opens.
+/// everyone before the temple opens. Which door of the accueil it was opened by
+/// (<see cref="Session.RequestedMode"/>) decides whether the host/join row shows at
+/// all — a solo table has no one to host or join.
 /// </summary>
 public partial class Lobby : Control
 {
-    private readonly List<Session.Seat> _party = [];
+    /// <summary>Whether this machine is hosting or trying to join, in Coop mode.
+    /// Purely a display choice until a button is actually pressed — <see
+    /// cref="Session.LobbyMode.Solo"/> never touches either.</summary>
+    private enum NetMode
+    {
+        Host,
+        Join,
+    }
 
-    private Button _solo = null!;
-    private Button _host = null!;
-    private Button _join = null!;
-    private Button _start = null!;
-    private LineEdit _address = null!;
-    private LineEdit _seed = null!;
-    private OptionButton _difficulty = null!;
-    private Label _status = null!;
-    private Label _hint = null!;
-    private GridContainer _roster = null!;
-    private VBoxContainer _partyList = null!;
+    private readonly List<Session.Seat> _party = [];
+    private readonly List<ExplorerSheet> _roster = [.. ExplorerRoster.All];
+
+    private Session.LobbyMode _mode;
+    private NetMode _netMode = NetMode.Host;
+    private int _focus;
+    private int _difficultyIndex = (int)Difficulty.Normal;
+    private string _seedText = "";
+    private string _addressText = "127.0.0.1";
 
     /// <summary>Whether a link has been opened at all. Before that, everything is local.</summary>
     private bool _online;
 
+    private Control _netModeRow = null!;
+    private Label _statusLabel = null!;
+    private Control _joinField = null!;
+    private LineEdit _addressInput = null!;
+    private HBoxContainer _carouselRow = null!;
+    private HBoxContainer _dotsRow = null!;
+    private VBoxContainer _partyList = null!;
+    private Control _difficultyRow = null!;
+    private LineEdit _seedInput = null!;
+    private Button _startButton = null!;
+    private Label _hintLabel = null!;
+
     public override void _Ready()
     {
-        _solo = GetNode<Button>("%Solo");
-        _host = GetNode<Button>("%Host");
-        _join = GetNode<Button>("%Join");
-        _start = GetNode<Button>("%Start");
-        _address = GetNode<LineEdit>("%Address");
-        _seed = GetNode<LineEdit>("%Seed");
-        _difficulty = GetNode<OptionButton>("%Difficulty");
-        _status = GetNode<Label>("%Status");
-        _hint = GetNode<Label>("%Hint");
-        _roster = GetNode<GridContainer>("%Roster");
-        _partyList = GetNode<VBoxContainer>("%Party");
+        _mode = Session.RequestedMode;
+        _seedInput = new LineEdit();
+        _addressInput = new LineEdit();
 
-        foreach (var difficulty in Enum.GetValues<Difficulty>())
-        {
-            _difficulty.AddItem(Say(difficulty), (int)difficulty);
-        }
-
-        _difficulty.Selected = (int)Difficulty.Normal;
-
-        _solo.Pressed += PlayAlone;
-        _host.Pressed += Host;
-        _join.Pressed += Join;
-        _start.Pressed += Start;
-        _difficulty.ItemSelected += _ => Publish();
-        _seed.TextChanged += _ => Publish();
+        BuildLayout();
 
         Multiplayer.PeerConnected += WelcomePeer;
         Multiplayer.PeerDisconnected += SeeOffPeer;
@@ -62,8 +62,16 @@ public partial class Lobby : Control
         Multiplayer.ConnectionFailed += OnConnectionFailed;
         Multiplayer.ServerDisconnected += OnHostGone;
 
-        BuildRoster();
-        Refresh();
+        // Both branches end by calling Refresh() themselves — there is no bare
+        // "nothing has happened yet" state to draw on top of.
+        if (_mode == Session.LobbyMode.Solo)
+        {
+            PlayAlone();
+        }
+        else
+        {
+            Host();
+        }
     }
 
     // ---------------------------------------------------------------- the link
@@ -86,6 +94,7 @@ public partial class Lobby : Control
         if (error is not Error.Ok)
         {
             Note($"Impossible d'ouvrir le port {Session.DefaultPort} : {error}");
+            Refresh();
             return;
         }
 
@@ -100,17 +109,18 @@ public partial class Lobby : Control
         Drop();
 
         var peer = new ENetMultiplayerPeer();
-        var error = peer.CreateClient(_address.Text.Trim(), Session.DefaultPort);
+        var error = peer.CreateClient(_addressText.Trim(), Session.DefaultPort);
 
         if (error is not Error.Ok)
         {
             Note($"Connexion impossible : {error}");
+            Refresh();
             return;
         }
 
         Multiplayer.MultiplayerPeer = peer;
         _online = true;
-        Note($"Connexion à {_address.Text.Trim()}…");
+        Note($"Connexion à {_addressText.Trim()}…");
         Refresh();
     }
 
@@ -214,7 +224,7 @@ public partial class Lobby : Control
     {
         if (_online && IsHost)
         {
-            Rpc(nameof(SyncTable), Session.Encode(_party), _difficulty.Selected, _seed.Text);
+            Rpc(nameof(SyncTable), Session.Encode(_party), _difficultyIndex, _seedText);
         }
 
         Refresh();
@@ -225,8 +235,8 @@ public partial class Lobby : Control
     {
         _party.Clear();
         _party.AddRange(Session.Decode(party));
-        _difficulty.Selected = difficulty;
-        _seed.Text = seed;
+        _difficultyIndex = difficulty;
+        _seedText = seed;
         Refresh();
     }
 
@@ -240,16 +250,16 @@ public partial class Lobby : Control
             return;
         }
 
-        var seed = ulong.TryParse(_seed.Text.Trim(), out var chosen)
+        var seed = ulong.TryParse(_seedText.Trim(), out var chosen)
             ? chosen
             : (ulong)Random.Shared.NextInt64(1, long.MaxValue);
 
         if (_online)
         {
-            Rpc(nameof(Enter), Session.Encode(_party), _difficulty.Selected, seed.ToString());
+            Rpc(nameof(Enter), Session.Encode(_party), _difficultyIndex, seed.ToString());
         }
 
-        Enter(Session.Encode(_party), _difficulty.Selected, seed.ToString());
+        Enter(Session.Encode(_party), _difficultyIndex, seed.ToString());
     }
 
     /// <summary>
@@ -269,72 +279,13 @@ public partial class Lobby : Control
         GetTree().ChangeSceneToFile("res://scenes/app/Main.tscn");
     }
 
-    // ---------------------------------------------------------------- the view
-
-    private void BuildRoster()
+    private void Note(string message)
     {
-        foreach (var sheet in ExplorerRoster.All)
+        if (_statusLabel is not null)
         {
-            var id = sheet.Id;
-
-            var card = new Button
-            {
-                Name = sheet.Id,
-                FocusMode = FocusModeEnum.None,
-                CustomMinimumSize = new Vector2(0f, 64f),
-                SizeFlagsHorizontal = SizeFlags.ExpandFill,
-                TooltipText = $"{sheet.First.Name} ({sheet.First.Cost}) — {sheet.First.Text}\n\n"
-                    + $"{sheet.Second.Name} ({sheet.Second.Cost}) — {sheet.Second.Text}",
-            };
-
-            card.Pressed += () => Take(id);
-            _roster.AddChild(card);
+            _statusLabel.Text = message;
         }
     }
-
-    private void Refresh()
-    {
-        foreach (var sheet in ExplorerRoster.All)
-        {
-            var card = _roster.GetNode<Button>(sheet.Id);
-            var seat = _party.FirstOrDefault(seat => seat.SheetId == sheet.Id);
-
-            card.Text = string.Join('\n',
-                sheet.Name,
-                $"{new string('♥', sheet.MaxHealth)}   {Say(sheet.Domain)}",
-                seat is null ? " " : Who(seat.Peer));
-
-            // A card someone else holds is not yours to take, but you can always let
-            // go of your own.
-            card.Disabled = seat is not null && seat.Peer != Me;
-        }
-
-        foreach (var child in _partyList.GetChildren())
-        {
-            child.QueueFree();
-        }
-
-        foreach (var (seat, index) in _party.Select((seat, index) => (seat, index)))
-        {
-            var sheet = ExplorerRoster.Find(seat.SheetId)!;
-            var badge = index == 0 ? "★ " : string.Empty;
-
-            _partyList.AddChild(new Label
-            {
-                Text = $"{badge}{sheet.Name}   {new string('♥', sheet.MaxHealth)}   {Who(seat.Peer)}",
-            });
-        }
-
-        _start.Disabled = !IsHost || _party.Count < ExplorerRoster.SmallestParty;
-        _seed.Editable = IsHost;
-        _difficulty.Disabled = !IsHost;
-
-        _hint.Text = _party.Count < ExplorerRoster.SmallestParty
-            ? $"Le premier Explorateur de la liste est Chef d'Expédition. Il en faut {ExplorerRoster.SmallestParty} au minimum — en solo, prends-en trois."
-            : "Le premier Explorateur de la liste est Chef d'Expédition ; l'ordre de la liste est l'ordre du tour.";
-    }
-
-    private void Note(string message) => _status.Text = message;
 
     private string Who(long peer) =>
         peer == Me ? "— à toi" : $"— joueur {peer}";
@@ -356,4 +307,642 @@ public partial class Lobby : Control
         Difficulty.Expert => "Expert",
         _ => difficulty.ToString(),
     };
+
+    // ---------------------------------------------------------------- the view
+
+    private void BuildLayout()
+    {
+        var background = new ColorRect { Color = Paper.Field, MouseFilter = MouseFilterEnum.Ignore };
+        background.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(background);
+
+        var margin = new MarginContainer();
+        margin.SetAnchorsPreset(LayoutPreset.FullRect);
+        margin.AddThemeConstantOverride("margin_left", 44);
+        margin.AddThemeConstantOverride("margin_right", 44);
+        margin.AddThemeConstantOverride("margin_top", 36);
+        margin.AddThemeConstantOverride("margin_bottom", 36);
+        AddChild(margin);
+
+        var stage = new VBoxContainer();
+        stage.AddThemeConstantOverride("separation", 14);
+        margin.AddChild(stage);
+
+        stage.AddChild(BuildHeader());
+
+        stage.AddChild(BuildLinkRow());
+
+        var body = new HBoxContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+        body.AddThemeConstantOverride("separation", 26);
+        stage.AddChild(body);
+
+        body.AddChild(BuildLeft());
+        body.AddChild(BuildRight());
+    }
+
+    private Control BuildHeader()
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 16);
+
+        var back = new Button
+        {
+            Text = "‹ Accueil",
+            Flat = true,
+            FocusMode = FocusModeEnum.None,
+            MouseDefaultCursorShape = CursorShape.PointingHand,
+        };
+        back.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
+        back.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
+        back.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        back.AddThemeFontSizeOverride("font_size", 14);
+        back.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.62f });
+        back.AddThemeColorOverride("font_hover_color", Paper.Sienna);
+        back.Pressed += () =>
+        {
+            Drop();
+            GetTree().ChangeSceneToFile("res://scenes/app/Home.tscn");
+        };
+
+        var title = new Label
+        {
+            Text = _mode == Session.LobbyMode.Solo ? "Partie solo" : "Partie coopérative",
+        };
+        title.AddThemeColorOverride("font_color", Paper.Ink);
+        title.AddThemeFontSizeOverride("font_size", 30);
+
+        row.AddChild(back);
+        row.AddChild(title);
+        return row;
+    }
+
+    /// <summary>The Héberger/Rejoindre row — Coop only. A solo table has nothing to
+    /// host or join, so it is never even built into the tree for that mode.</summary>
+    private Control BuildLinkRow()
+    {
+        var row = new HBoxContainer { Visible = _mode == Session.LobbyMode.Coop };
+        row.AddThemeConstantOverride("separation", 16);
+
+        _netModeRow = new MarginContainer();
+        row.AddChild(_netModeRow);
+
+        _joinField = BuildJoinField();
+        row.AddChild(_joinField);
+
+        row.AddChild(BuildStatusBanner());
+
+        return row;
+    }
+
+    private Control BuildJoinField()
+    {
+        var box = new HBoxContainer { Visible = _netMode == NetMode.Join };
+        box.AddThemeConstantOverride("separation", 8);
+
+        _addressInput.Text = _addressText;
+        _addressInput.PlaceholderText = "adresse de l'hôte";
+        _addressInput.CustomMinimumSize = new Vector2(170, 0);
+        _addressInput.TextChanged += text => _addressText = text;
+
+        var join = new Button
+        {
+            Text = "Rejoindre",
+            FocusMode = FocusModeEnum.None,
+            MouseDefaultCursorShape = CursorShape.PointingHand,
+        };
+        join.AddThemeStyleboxOverride("normal", Paper.CardStyle(bg: Paper.CardSpine, borderWidth: 2f, radius: 8f));
+        join.AddThemeStyleboxOverride("hover", Paper.CardStyle(bg: Palette.Support, borderWidth: 2f, radius: 8f));
+        join.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        join.AddThemeColorOverride("font_color", Paper.Ink);
+        join.Pressed += Join;
+
+        box.AddChild(_addressInput);
+        box.AddChild(join);
+        return box;
+    }
+
+    private Control BuildStatusBanner()
+    {
+        var panel = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        panel.AddThemeStyleboxOverride("panel", Paper.CardStyle(bg: Paper.CardSpine, borderWidth: 2f, radius: 8f));
+
+        var row = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+        row.AddThemeConstantOverride("separation", 0);
+
+        var stripe = new ColorRect
+        {
+            Color = Palette.Choice,
+            CustomMinimumSize = new Vector2(4, 0),
+            MouseFilter = MouseFilterEnum.Ignore,
+        };
+
+        var pad = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
+        pad.AddThemeConstantOverride("margin_left", 12);
+        pad.AddThemeConstantOverride("margin_right", 12);
+        pad.AddThemeConstantOverride("margin_top", 8);
+        pad.AddThemeConstantOverride("margin_bottom", 8);
+
+        _statusLabel = new Label { MouseFilter = MouseFilterEnum.Ignore };
+        _statusLabel.AddThemeColorOverride("font_color", Paper.Ink);
+        _statusLabel.AddThemeFontSizeOverride("font_size", 13);
+
+        pad.AddChild(_statusLabel);
+        row.AddChild(stripe);
+        row.AddChild(pad);
+        panel.AddChild(row);
+        return panel;
+    }
+
+    private Control BuildLeft()
+    {
+        var col = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill, SizeFlagsVertical = SizeFlags.ExpandFill };
+        col.AddThemeConstantOverride("separation", 8);
+
+        var heading = new Label { Text = "Les Explorateurs" };
+        heading.AddThemeColorOverride("font_color", Paper.Ink);
+        heading.AddThemeFontSizeOverride("font_size", 20);
+
+        var rosterHint = new Label
+        {
+            Text = "Clique la carte du centre pour la recruter (reclique pour la rendre) · une carte voisine pour la faire défiler.",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        rosterHint.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.62f });
+        rosterHint.AddThemeFontSizeOverride("font_size", 13);
+
+        var carouselArea = new CenterContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
+
+        _carouselRow = new HBoxContainer();
+        _carouselRow.AddThemeConstantOverride("separation", 18);
+        carouselArea.AddChild(_carouselRow);
+
+        _dotsRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        _dotsRow.AddThemeConstantOverride("separation", 8);
+        var dotsCenter = new CenterContainer();
+        dotsCenter.AddChild(_dotsRow);
+
+        col.AddChild(heading);
+        col.AddChild(rosterHint);
+        col.AddChild(carouselArea);
+        col.AddChild(dotsCenter);
+        return col;
+    }
+
+    private Control BuildRight()
+    {
+        var panel = new PanelContainer { CustomMinimumSize = new Vector2(400, 0) };
+        panel.AddThemeStyleboxOverride("panel", Paper.CardStyle());
+        panel.Material = Paper.Grain;
+
+        var col = new VBoxContainer();
+        col.AddThemeConstantOverride("separation", 14);
+
+        var margin = new MarginContainer();
+        margin.AddThemeConstantOverride("margin_left", 22);
+        margin.AddThemeConstantOverride("margin_right", 22);
+        margin.AddThemeConstantOverride("margin_top", 20);
+        margin.AddThemeConstantOverride("margin_bottom", 20);
+        margin.AddChild(col);
+        panel.AddChild(margin);
+
+        var heading = new Label { Text = "L'expédition" };
+        heading.AddThemeColorOverride("font_color", Paper.Ink);
+        heading.AddThemeFontSizeOverride("font_size", 21);
+
+        _partyList = new VBoxContainer { CustomMinimumSize = new Vector2(0, 90) };
+        _partyList.AddThemeConstantOverride("separation", 6);
+
+        var difficultyLabel = new Label { Text = "Difficulté" };
+        difficultyLabel.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.7f });
+        difficultyLabel.AddThemeFontSizeOverride("font_size", 12);
+
+        var difficultyHolder = new VBoxContainer();
+        difficultyHolder.AddThemeConstantOverride("separation", 6);
+        difficultyHolder.AddChild(difficultyLabel);
+        _difficultyRow = new MarginContainer();
+        difficultyHolder.AddChild(_difficultyRow);
+
+        var seedLabel = new Label { Text = "Graine" };
+        seedLabel.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.7f });
+        seedLabel.AddThemeFontSizeOverride("font_size", 12);
+
+        _seedInput.PlaceholderText = "au hasard";
+        _seedInput.TextChanged += text =>
+        {
+            _seedText = text;
+            Publish();
+        };
+
+        var seedHolder = new VBoxContainer();
+        seedHolder.AddThemeConstantOverride("separation", 6);
+        seedHolder.AddChild(seedLabel);
+        seedHolder.AddChild(_seedInput);
+
+        _startButton = new Button
+        {
+            Text = "Entrer dans le Temple",
+            FocusMode = FocusModeEnum.None,
+            CustomMinimumSize = new Vector2(0, 52),
+        };
+        _startButton.AddThemeFontSizeOverride("font_size", 18);
+        _startButton.AddThemeColorOverride("font_color", Paper.Ink);
+        _startButton.AddThemeColorOverride("font_disabled_color", Paper.Ink with { A = 0.5f });
+        _startButton.Pressed += Start;
+
+        _hintLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, HorizontalAlignment = HorizontalAlignment.Center };
+        _hintLabel.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.62f });
+        _hintLabel.AddThemeFontSizeOverride("font_size", 11);
+
+        col.AddChild(heading);
+        col.AddChild(_partyList);
+        col.AddChild(Paper.Divider(vertical: false));
+        col.AddChild(difficultyHolder);
+        col.AddChild(seedHolder);
+
+        var spacer = new Control { SizeFlagsVertical = SizeFlags.ExpandFill };
+        col.AddChild(spacer);
+        col.AddChild(_startButton);
+        col.AddChild(_hintLabel);
+
+        return panel;
+    }
+
+    /// <summary>
+    /// Redraws everything that can change after a claim, a difficulty pick, a
+    /// carousel step, or a link opening or closing. Rebuilt wholesale, the same way
+    /// the HUD redraws its own party row after every command — there are never many
+    /// pieces, and it keeps a stale claim from ever lingering on screen.
+    /// </summary>
+    private void Refresh()
+    {
+        RefreshLinkRow();
+        RefreshCarousel();
+        RefreshPartyList();
+        RefreshDifficulty();
+
+        _seedInput.Text = _seedText;
+        _seedInput.Editable = IsHost;
+
+        var canStart = IsHost && _party.Count >= ExplorerRoster.SmallestParty;
+        _startButton.Disabled = !canStart;
+        _startButton.AddThemeStyleboxOverride("normal", Paper.CardStyle(bg: canStart ? Palette.Step : Paper.CardSpine, borderWidth: 3f, radius: 10f));
+        _startButton.AddThemeStyleboxOverride("disabled", Paper.CardStyle(bg: Paper.CardSpine, borderWidth: 3f, radius: 10f));
+        _startButton.AddThemeStyleboxOverride("hover", Paper.CardStyle(bg: canStart ? Palette.Step : Paper.CardSpine, borderWidth: 3f, radius: 10f));
+        _startButton.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+
+        _hintLabel.Text = (_mode == Session.LobbyMode.Coop && !IsHost)
+            ? "Seul l'hôte peut lancer l'expédition."
+            : _party.Count < ExplorerRoster.SmallestParty
+                ? $"Le premier Explorateur de la liste est Chef d'Expédition. Il en faut {ExplorerRoster.SmallestParty} au minimum — en solo, prends-en trois."
+                : "Le premier Explorateur de la liste est Chef d'Expédition ; l'ordre de la liste est l'ordre du tour.";
+    }
+
+    private void RefreshLinkRow()
+    {
+        if (_mode == Session.LobbyMode.Solo)
+        {
+            return;
+        }
+
+        _joinField.Visible = _netMode == NetMode.Join;
+
+        foreach (var child in _netModeRow.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        _netModeRow.AddChild(Paper.Segmented(["Héberger", "Rejoindre"], (int)_netMode, i =>
+        {
+            var chosen = (NetMode)i;
+
+            if (chosen == _netMode)
+            {
+                return;
+            }
+
+            _netMode = chosen;
+
+            if (_netMode == NetMode.Host)
+            {
+                Host();
+            }
+            else
+            {
+                Drop();
+                Note($"Prêt à rejoindre {_addressText}…");
+                Refresh();
+            }
+        }));
+    }
+
+    private void RefreshCarousel()
+    {
+        foreach (var child in _carouselRow.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        var count = _roster.Count;
+        var prev = (_focus - 1 + count) % count;
+        var next = (_focus + 1) % count;
+
+        _carouselRow.AddChild(BuildArrow("‹", () => Step(-1)));
+        _carouselRow.AddChild(BuildExplorerCard(_roster[prev], focused: false));
+        _carouselRow.AddChild(BuildExplorerCard(_roster[_focus], focused: true));
+        _carouselRow.AddChild(BuildExplorerCard(_roster[next], focused: false));
+        _carouselRow.AddChild(BuildArrow("›", () => Step(1)));
+
+        foreach (var child in _dotsRow.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        for (var i = 0; i < count; i++)
+        {
+            var index = i;
+            var dot = new Button
+            {
+                CustomMinimumSize = new Vector2(9, 9),
+                FocusMode = FocusModeEnum.None,
+                MouseDefaultCursorShape = CursorShape.PointingHand,
+            };
+            var style = Paper.CardStyle(bg: i == _focus ? Paper.Ink : Paper.CardShade, borderWidth: 1f, radius: 5f);
+            dot.AddThemeStyleboxOverride("normal", style);
+            dot.AddThemeStyleboxOverride("hover", style);
+            dot.AddThemeStyleboxOverride("pressed", style);
+            dot.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+            dot.Pressed += () => { _focus = index; Refresh(); };
+            _dotsRow.AddChild(dot);
+        }
+    }
+
+    private void Step(int delta)
+    {
+        var count = _roster.Count;
+        _focus = ((_focus + delta) % count + count) % count;
+        Refresh();
+    }
+
+    private Control BuildArrow(string glyph, Action onPress)
+    {
+        var arrow = new Button
+        {
+            Text = glyph,
+            FocusMode = FocusModeEnum.None,
+            CustomMinimumSize = new Vector2(44, 44),
+            MouseDefaultCursorShape = CursorShape.PointingHand,
+        };
+        arrow.AddThemeStyleboxOverride("normal", Paper.CardStyle(bg: Paper.CardSpine, borderWidth: 2f, radius: 22f));
+        arrow.AddThemeStyleboxOverride("hover", Paper.CardStyle(bg: Palette.Step, borderWidth: 2f, radius: 22f));
+        arrow.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        arrow.AddThemeColorOverride("font_color", Paper.Ink);
+        arrow.AddThemeFontSizeOverride("font_size", 20);
+        arrow.Pressed += onPress;
+        return arrow;
+    }
+
+    /// <summary>
+    /// One Explorer's card. The focused one — the centre of the carousel — recruits
+    /// or releases on a click and prints both abilities; the two flanking it are a
+    /// smaller preview that only ever changes which one is focused. The portrait area
+    /// is a placeholder meeple, not a real model — the project has no character art
+    /// or 3D model yet, only the flat capsule <c>TokenView</c> already stands each
+    /// Explorer's meeple in as on the board itself.
+    /// </summary>
+    private Control BuildExplorerCard(ExplorerSheet sheet, bool focused)
+    {
+        var order = _party.FindIndex(seat => seat.SheetId == sheet.Id);
+        var isPicked = order >= 0;
+        var mine = isPicked && _party[order].Peer == Me;
+        var seatColor = isPicked ? Palette.SeatColor(order) : Palette.For(sheet.Domain);
+
+        var width = focused ? 320f : 190f;
+
+        var card = new Button
+        {
+            FocusMode = FocusModeEnum.None,
+            CustomMinimumSize = new Vector2(width, 0),
+            MouseDefaultCursorShape = CursorShape.PointingHand,
+            Modulate = focused ? Colors.White : Colors.White with { A = 0.55f },
+        };
+
+        var borderWidth = focused ? 3f : 2f;
+        var borderColor = isPicked ? seatColor : Paper.BorderLine;
+        var face = Paper.CardStyle(borderWidth: borderWidth, border: borderColor, radius: 16f);
+        card.AddThemeStyleboxOverride("normal", face);
+        card.AddThemeStyleboxOverride("hover", face);
+        card.AddThemeStyleboxOverride("pressed", face);
+        card.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        card.Material = Paper.Grain;
+
+        card.Pressed += focused ? () => Take(sheet.Id) : () => { _focus = _roster.IndexOf(sheet); Refresh(); };
+
+        var pad = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
+        pad.AddThemeConstantOverride("margin_left", 14);
+        pad.AddThemeConstantOverride("margin_right", 14);
+        pad.AddThemeConstantOverride("margin_top", 14);
+        pad.AddThemeConstantOverride("margin_bottom", 14);
+
+        var col = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+        col.AddThemeConstantOverride("separation", 6);
+
+        var nameRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
+        nameRow.AddThemeConstantOverride("separation", 6);
+
+        if (isPicked)
+        {
+            var badge = new Label { Text = order == 0 ? "★" : (order + 1).ToString() };
+            badge.AddThemeColorOverride("font_color", Paper.Sienna);
+            badge.AddThemeFontSizeOverride("font_size", focused ? 14 : 11);
+            nameRow.AddChild(badge);
+        }
+
+        var name = new Label
+        {
+            Text = sheet.Name,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        name.AddThemeColorOverride("font_color", Paper.Ink);
+        name.AddThemeFontSizeOverride("font_size", focused ? 20 : 14);
+        nameRow.AddChild(name);
+        col.AddChild(nameRow);
+
+        if (isPicked && _mode == Session.LobbyMode.Coop)
+        {
+            var owner = new Label { Text = Who(_party[order].Peer), HorizontalAlignment = HorizontalAlignment.Center };
+            owner.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.6f });
+            owner.AddThemeFontSizeOverride("font_size", 10);
+            col.AddChild(owner);
+        }
+
+        if (focused)
+        {
+            var pill = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ShrinkCenter };
+            pill.AddThemeStyleboxOverride("panel", Paper.CardStyle(bg: Palette.For(sheet.Domain) with { A = 0.32f }, borderWidth: 0f, radius: 8f));
+            var pillLabel = new Label { Text = Say(sheet.Domain) };
+            pillLabel.AddThemeColorOverride("font_color", Paper.Ink);
+            pillLabel.AddThemeFontSizeOverride("font_size", 10);
+            pill.AddChild(pillLabel);
+            var pillCenter = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
+            pillCenter.AddChild(pill);
+            col.AddChild(pillCenter);
+        }
+
+        var figureCenter = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
+        var figurePanel = new PanelContainer { CustomMinimumSize = new Vector2(0, focused ? 190 : 100) };
+        figurePanel.AddThemeStyleboxOverride("panel", Paper.CardStyle(bg: seatColor with { A = isPicked ? 0.3f : 0.16f }, borderWidth: 0f, radius: 12f));
+
+        var figureLayout = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
+        figureLayout.AddThemeConstantOverride("separation", 4);
+        figureLayout.AddChild(Paper.Meeple(seatColor, focused ? 60f : 34f, focused ? 128f : 74f));
+
+        if (focused)
+        {
+            var tbd = new Label { Text = "modèle 3D à venir", HorizontalAlignment = HorizontalAlignment.Center };
+            tbd.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.4f });
+            tbd.AddThemeFontSizeOverride("font_size", 9);
+            figureLayout.AddChild(tbd);
+        }
+
+        var figureCenterInner = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ExpandFill };
+        figureCenterInner.AddChild(figureLayout);
+        figurePanel.AddChild(figureCenterInner);
+        figureCenter.AddChild(figurePanel);
+        col.AddChild(figureCenter);
+
+        var hearts = new Label
+        {
+            Text = new string('♥', sheet.MaxHealth),
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        hearts.AddThemeColorOverride("font_color", Palette.Combat);
+        hearts.AddThemeFontSizeOverride("font_size", focused ? 13 : 10);
+        col.AddChild(hearts);
+
+        if (focused)
+        {
+            col.AddChild(BuildAbility(sheet.First));
+            col.AddChild(BuildAbility(sheet.Second));
+        }
+
+        pad.AddChild(col);
+        card.AddChild(pad);
+        return card;
+    }
+
+    private static Control BuildAbility(Ability ability)
+    {
+        var box = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+        box.AddThemeConstantOverride("separation", 1);
+
+        var rule = Paper.Divider(vertical: false);
+        rule.CustomMinimumSize = new Vector2(0, 1);
+
+        var head = new HBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+        head.AddThemeConstantOverride("separation", 6);
+
+        var name = new Label { Text = ability.Name };
+        name.AddThemeColorOverride("font_color", Paper.Ink);
+        name.AddThemeFontSizeOverride("font_size", 12);
+
+        var cost = new Label { Text = $"({ability.Cost})" };
+        cost.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.6f });
+        cost.AddThemeFontSizeOverride("font_size", 10);
+
+        head.AddChild(name);
+        head.AddChild(cost);
+
+        var text = new Label
+        {
+            Text = ability.Text,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        text.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.62f });
+        text.AddThemeFontSizeOverride("font_size", 10);
+
+        box.AddChild(rule);
+        box.AddChild(head);
+        box.AddChild(text);
+        return box;
+    }
+
+    private void RefreshPartyList()
+    {
+        foreach (var child in _partyList.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        if (_party.Count == 0)
+        {
+            var empty = new Label { Text = "Aucun Explorateur pour l'instant." };
+            empty.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.4f });
+            empty.AddThemeFontSizeOverride("font_size", 13);
+            _partyList.AddChild(empty);
+            return;
+        }
+
+        foreach (var (seat, index) in _party.Select((seat, index) => (seat, index)))
+        {
+            var sheet = ExplorerRoster.Find(seat.SheetId)!;
+
+            var row = new HBoxContainer();
+            row.AddThemeConstantOverride("separation", 8);
+
+            var swatch = new PanelContainer { CustomMinimumSize = new Vector2(12, 12) };
+            swatch.AddThemeStyleboxOverride("panel", Paper.CardStyle(bg: Palette.SeatColor(index), borderWidth: 1f, radius: 6f));
+
+            var label = new Label
+            {
+                Text = (index == 0 ? "★ " : "") + sheet.Name,
+                SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            };
+            label.AddThemeColorOverride("font_color", Paper.Ink);
+            label.AddThemeFontSizeOverride("font_size", 13);
+
+            var hearts = new Label { Text = new string('♥', sheet.MaxHealth) };
+            hearts.AddThemeColorOverride("font_color", Palette.Combat);
+            hearts.AddThemeFontSizeOverride("font_size", 11);
+
+            row.AddChild(swatch);
+            row.AddChild(label);
+            row.AddChild(hearts);
+
+            if (_mode == Session.LobbyMode.Coop)
+            {
+                var who = new Label { Text = Who(seat.Peer) };
+                who.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.55f });
+                who.AddThemeFontSizeOverride("font_size", 10);
+                row.AddChild(who);
+            }
+
+            _partyList.AddChild(row);
+        }
+    }
+
+    private void RefreshDifficulty()
+    {
+        foreach (var child in _difficultyRow.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        var labels = Enum.GetValues<Difficulty>().Select(Say).ToArray();
+        var isHost = IsHost;
+
+        var segmented = Paper.Segmented(labels, _difficultyIndex, i =>
+        {
+            if (!IsHost)
+            {
+                return;
+            }
+
+            _difficultyIndex = i;
+            Publish();
+        });
+
+        segmented.Modulate = isHost ? Colors.White : Colors.White with { A = 0.55f };
+        _difficultyRow.AddChild(segmented);
+    }
 }

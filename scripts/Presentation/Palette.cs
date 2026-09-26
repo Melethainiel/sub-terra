@@ -1,4 +1,5 @@
 using Godot;
+using SubTerra.Core.Explorers;
 using SubTerra.Core.Game;
 using SubTerra.Core.Tiles;
 
@@ -60,6 +61,28 @@ public static class Palette
     public static readonly Color LavaGlow = Color.Color8(255, 130, 40);
 
     public static Color For(ExplorerId explorer) => Explorers[explorer.Value % Explorers.Length];
+
+    /// <summary>
+    /// The colour a party seat will actually show once the game deals out
+    /// <see cref="ExplorerId"/>s — which happens by seat order, so the lobby can
+    /// preview it before that assignment exists just by knowing where in the party
+    /// list an Explorer sits.
+    /// </summary>
+    public static Color SeatColor(int seatIndex) => Explorers[seatIndex % Explorers.Length];
+
+    /// <summary>
+    /// An Explorer's field of practice, tinted with a colour the rest of the game
+    /// already gives a meaning to — the lobby groups its roster by domain before a
+    /// party (and so a seat colour) exists at all.
+    /// </summary>
+    public static Color For(Domain domain) => domain switch
+    {
+        Domain.Scout => Step,
+        Domain.Connector => Unknown,
+        Domain.Defender => Combat,
+        Domain.Support => Support,
+        _ => Faded,
+    };
 
     /// <summary>
     /// What a tile lights its own passage with. Reuses the sigil colours where a

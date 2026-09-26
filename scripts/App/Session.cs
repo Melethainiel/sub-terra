@@ -19,6 +19,18 @@ public static class Session
     /// <summary>A chosen Explorer and the player who runs them.</summary>
     public sealed record Seat(string SheetId, long Peer);
 
+    /// <summary>Which door of the lobby the accueil was opened by — Solo hides the
+    /// host/join row entirely and seats the one machine at its own table; Coop shows
+    /// it, since a shared table needs one before anyone can be seated at all.</summary>
+    public enum LobbyMode
+    {
+        Solo,
+        Coop,
+    }
+
+    /// <summary>Set by the accueil right before it opens the lobby.</summary>
+    public static LobbyMode RequestedMode { get; set; } = LobbyMode.Solo;
+
     public static IReadOnlyList<Seat> Party { get; set; } = [];
 
     public static ulong Seed { get; set; } = 42;

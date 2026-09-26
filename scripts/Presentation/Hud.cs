@@ -33,22 +33,11 @@ public partial class Hud : CanvasLayer
     /// only arms it — <see cref="AppRoot"/> then waits for a cell to be clicked
     /// before a command is actually sent, the same two-step "point at the action,
     /// then point at the target" the card asks for. The rest need no target beyond
-    /// the explorer's own tile, so pressing the column is the whole of it.
+    /// the explorer's own tile, so pressing the column is the whole of it. The data
+    /// itself lives in <see cref="ActionCards"/>, shared with the Réglages screen's
+    /// command reference.
     /// </summary>
-    private static readonly (string Action, string Name, string Icon, string Cost, string Key, bool Targeted, Color Accent)[] Cards =
-    [
-        ("move", "Se déplacer", "→", "1 PA", "M", true, Palette.Step),
-        ("explore", "Explorer", "◇", "1 PA", "E", true, Palette.Unknown),
-        ("reveal", "Révéler", "☆", "1 PA", "R", true, Palette.Unknown),
-        ("dig", "Creuser", "▼", "2 PA", "C", true, Palette.Rubble),
-        ("run", "Courir", "»", "2 PA", "U", true, Palette.Step),
-        ("attack", "Attaquer", "×", "1 PA", "A", false, Palette.Combat),
-        ("heal", "Soigner", "♥", "1 PA", "H", false, Palette.Support),
-        ("pickup", "Ramasser", "▲", "1 PA", "P", false, Palette.Support),
-        ("drop", "Poser", "▽", "1 PA", "D", false, Palette.Support),
-        ("overexert", "Se dépasser", "↑", "1 ♥", "O", false, Palette.Meta),
-        ("endturn", "Finir le tour", "■", "—", "Espace", false, Palette.Meta),
-    ];
+    private static readonly IReadOnlyList<ActionCardInfo> Cards = ActionCards.All;
 
     /// <summary>One column's width and height on the Actions card — narrow enough
     /// that all eleven, plus their dividers, still read as one object rather than a

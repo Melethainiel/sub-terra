@@ -98,7 +98,7 @@ public partial class AppRoot : Node3D
     /// confirmed.</summary>
     private readonly List<Direction> _runSteps = [];
 
-    private ViewMode _viewMode = ViewMode.Overview;
+    private ViewMode _viewMode = Settings.DefaultViewIsFps ? ViewMode.Fps : ViewMode.Overview;
     private float _overviewFov;
 
     /// <summary>The look the mouse has built in FPS mode, and whose look it is — so a

@@ -40,29 +40,29 @@ size_flags_horizontal = 0
 size_flags_vertical = 0
 mouse_filter = 2
 
-[node name="PartyBar" type="CenterContainer" parent="."]
+[node name="PartyBar" type="CenterContainer" parent="." unique_id=959698144]
 anchors_preset = -1
 anchor_right = 1.0
-grow_horizontal = 2
 offset_top = 14.0
 offset_bottom = 168.0
+grow_horizontal = 2
 mouse_filter = 2
 
-[node name="Party" type="HBoxContainer" parent="PartyBar"]
+[node name="Party" type="HBoxContainer" parent="PartyBar" unique_id=262035245]
 unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 14
 
-[node name="ActionsBar" type="CenterContainer" parent="."]
+[node name="ActionsBar" type="CenterContainer" parent="." unique_id=128593450]
 anchors_preset = -1
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 0
 offset_top = -190.0
 offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 0
 mouse_filter = 2
 
 [node name="Actions" type="PanelContainer" parent="ActionsBar" unique_id=1797141598]
@@ -70,7 +70,7 @@ unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 2
 
-[node name="Crosshair" type="CenterContainer" parent="."]
+[node name="Crosshair" type="CenterContainer" parent="." unique_id=211116965]
 unique_name_in_owner = true
 visible = false
 anchors_preset = 15
@@ -80,9 +80,8 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="Mark" type="Label" parent="Crosshair"]
+[node name="Mark" type="Label" parent="Crosshair" unique_id=212519326]
 layout_mode = 2
-mouse_filter = 2
 theme_override_colors/font_color = Color(1, 0.86, 0.7, 0.85)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
