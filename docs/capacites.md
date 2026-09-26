@@ -136,8 +136,12 @@ une carte de plus dans le HUD, sur le modèle de celles déjà en place.
    (piège à pics, Attaquer, Effondrement, Péril) sort de `Roll`, qui, au tour
    de l'Archéologue et tant qu'elle tient debout, lui demande de garder ou de
    relancer pour 1 ♥ (`DecisionKind.Reroll`), autant de fois qu'elle veut.
-4. **Les répétitions d'action commune** (Illuminer, Sprinter, Excaver) — même
-   remarque, coût différent seulement.
+4. ~~**Les répétitions d'action commune** (Illuminer, Sprinter, Excaver)~~ —
+   faites, par un seul mécanisme : la capacité (1 PA) **offre** des actions
+   communes — 2 Révéler, 2 Se déplacer, 1 Creuser — qu'on joue ensuite avec
+   leurs commandes ordinaires, sans payer de PA (`GameState.Granted`). Elles
+   se jouent sur-le-champ : toute autre commande acceptée, ou la fin du tour,
+   les fait perdre. À l'écran, la carte offerte s'arme d'elle-même.
 5. **Les nouveaux `GameCommand` avec ciblage déjà résolu par ailleurs**
    (Anéantir, Se préparer, Consolider, Ordonner).
 6. **Les ciblages à bâtir en dernier** — « tuile adjacente pas la sienne »

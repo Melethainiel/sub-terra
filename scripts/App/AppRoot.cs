@@ -278,6 +278,21 @@ public partial class AppRoot : Node3D
         _ => null,
     };
 
+    /// <summary>The last grant <see cref="Refresh"/> saw, so it arms the granted card
+    /// once per change rather than on every redraw.</summary>
+    private GrantedActions? _lastGranted;
+
+    private static string CardFor(GrantedAction action) => action switch
+    {
+        GrantedAction.Move => "move",
+        GrantedAction.Reveal => "reveal",
+        _ => "dig",
+    };
+
+    /// <summary>Whether the turn can pay for a common action — or an ability already has.</summary>
+    private bool Affords(GrantedAction action, int cost) =>
+        _game.Granted?.Action == action || _game.ActionPoints >= cost;
+
     /// <summary>The abilities the engine already plays that aim at another Explorer.
     /// Any other ability's column stays greyed until its turn comes.</summary>
     private static readonly HashSet<string> HealingAbilities = [AbilityIds.Guerir, AbilityIds.Ranimer];
@@ -329,6 +344,14 @@ public partial class AppRoot : Node3D
         if (action == "heal" && _game.HealTargets().ToList() is [var only] && only == _game.CurrentExplorer.Id)
         {
             Apply(new Heal(only));
+            return;
+        }
+
+        // An ability that aims at nobody is played on the spot; whatever it buys then
+        // comes into hand on its own (see Refresh).
+        if (AbilityIn(action) is { } ability && !HealingAbilities.Contains(ability.Id))
+        {
+            Apply(new UseAbility(ability.Id));
             return;
         }
 
@@ -398,11 +421,16 @@ public partial class AppRoot : Node3D
     /// </summary>
     private bool CanArm(string action) => action switch
     {
-        "move" => _game.ActionPoints >= 1 && _game.Steps().Any(),
-        "explore" or "reveal" => _game.ActionPoints >= 1 && _game.Exits().Any(),
-        "dig" => _game.ActionPoints >= 2 && _game.DigTargets().Any(),
+        "move" => Affords(GrantedAction.Move, 1) && _game.Steps().Any(),
+        "explore" => _game.ActionPoints >= 1 && _game.Exits().Any(),
+        "reveal" => Affords(GrantedAction.Reveal, 1) && _game.Exits().Any(),
+        "dig" => Affords(GrantedAction.Dig, 2) && _game.DigTargets().Any(),
         "run" => _game.ActionPoints >= 2 && _game.Steps().Any(),
-        "heal" or "ability1" or "ability2" => HealTargetsFor(action)?.Any() ?? false,
+        "heal" => HealTargetsFor(action)?.Any() ?? false,
+        "ability1" or "ability2" => AbilityIn(action) is { } ability
+            && (HealingAbilities.Contains(ability.Id)
+                ? _game.HealTargets(ability.Id).Any()
+                : _game.AbilityUnavailable(ability.Id) is null),
         _ => true,
     };
 
@@ -444,6 +472,10 @@ public partial class AppRoot : Node3D
         switch (_armed)
         {
             case "move":
+                // Put down first: what the click plays may put a card straight back
+                // in hand (an ability's second free action), and that one stays.
+                Disarm();
+
                 if (from.DirectionTo(cell) is { } moveDirection)
                 {
                     Apply(new Move(moveDirection));
@@ -453,10 +485,13 @@ public partial class AppRoot : Node3D
                     Say($"{cell} n'est pas voisine de {from}.");
                 }
 
-                Disarm();
                 break;
 
             case "explore":
+                // Put down first: what the click plays may put a card straight back
+                // in hand (an ability's second free action), and that one stays.
+                Disarm();
+
                 if (from.DirectionTo(cell) is { } exploreDirection)
                 {
                     Apply(new Explore(exploreDirection));
@@ -466,10 +501,13 @@ public partial class AppRoot : Node3D
                     Say($"{cell} n'est pas voisine de {from}.");
                 }
 
-                Disarm();
                 break;
 
             case "reveal":
+                // Put down first: what the click plays may put a card straight back
+                // in hand (an ability's second free action), and that one stays.
+                Disarm();
+
                 if (from.DirectionTo(cell) is { } revealDirection)
                 {
                     Apply(new Reveal(revealDirection));
@@ -479,14 +517,13 @@ public partial class AppRoot : Node3D
                     Say($"{cell} n'est pas voisine de {from}.");
                 }
 
-                Disarm();
                 break;
 
             case "dig":
                 // Unlike the others, a dig target may be the explorer's own tile —
                 // no neighbour to check.
-                Apply(new Dig(cell));
                 Disarm();
+                Apply(new Dig(cell));
                 break;
 
             case "run":
@@ -494,8 +531,9 @@ public partial class AppRoot : Node3D
                 break;
 
             case "heal" or "ability1" or "ability2":
-                HealOn(_armed, cell);
+                var armed = _armed;
                 Disarm();
+                HealOn(armed, cell);
                 break;
         }
     }
@@ -903,6 +941,20 @@ public partial class AppRoot : Node3D
         {
             _armed = null;
             _runSteps.Clear();
+        }
+
+        // Illuminer, Sprinter and Excaver buy a common action to take there and then:
+        // its card is put straight in hand, and again after each one taken while any
+        // are left. Only when what was granted changes, so Échap still puts it down.
+        if (_game.Granted != _lastGranted)
+        {
+            _lastGranted = _game.Granted;
+
+            if (_game.Granted is { } granted && _game.Pending is null && Session.Owns(Due))
+            {
+                _armed = CardFor(granted.Action);
+                _runSteps.Clear();
+            }
         }
 
         _board.Render(_game.Board, Previewed(), justHappened, _game.Rubble);

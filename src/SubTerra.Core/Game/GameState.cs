@@ -163,6 +163,9 @@ public sealed class GameState
 
     public bool HasOverexerted { get; private set; }
 
+    /// <summary>Free common actions an ability has just bought, if any are left.</summary>
+    public GrantedActions? Granted { get; private set; }
+
     /// <summary>Rounds completed. Every explorer plays once per round.</summary>
     public int Round { get; private set; }
 
@@ -220,6 +223,7 @@ public sealed class GameState
             Mix(EruptionCountdown);
             Mix((long)Outcome);
             Mix(Pending is { } decision ? (long)decision.Kind + 1 : 0);
+            Mix(Granted is { } granted ? ((long)granted.Action + 1) * 16 + granted.Remaining : 0);
 
             foreach (var explorer in _explorers)
             {
@@ -312,10 +316,20 @@ public sealed class GameState
             return CommandResult.Reject($"{Chooser(waiting).Name} doit d'abord trancher : {waiting.Prompt}");
         }
 
+        // Actions an ability granted are taken there and then: anything else played
+        // lets them go — unless it is refused, in which case nothing happened at all.
+        var granted = Granted;
+
+        if (Granted is { } bought && !Spends(command, bought.Action))
+        {
+            Granted = null;
+        }
+
         var (rejection, script) = Dispatch(command);
 
         if (rejection is not null)
         {
+            Granted = granted;
             return CommandResult.Reject(rejection);
         }
 
@@ -438,7 +452,7 @@ public sealed class GameState
             return Script.Refuse("Cet Explorateur a quitté le Temple.");
         }
 
-        if (ActionPoints < 1)
+        if (CannotPay(GrantedAction.Move, 1))
         {
             return Script.Refuse("Plus de point d'action.");
         }
@@ -448,7 +462,7 @@ public sealed class GameState
             return Script.Refuse(rejection);
         }
 
-        ActionPoints--;
+        Pay(GrantedAction.Move, 1);
         return Script.Of(Step(CurrentExplorer, move.Direction));
     }
 
@@ -627,7 +641,7 @@ public sealed class GameState
             return Script.Refuse(down);
         }
 
-        if (ActionPoints < 1)
+        if (CannotPay(GrantedAction.Reveal, 1))
         {
             return Script.Refuse("Plus de point d'action.");
         }
@@ -649,7 +663,7 @@ public sealed class GameState
             return Script.Refuse($"Aucune issue à dégager en {exit.From} vers {reveal.Direction.Name()}.");
         }
 
-        ActionPoints--;
+        Pay(GrantedAction.Reveal, 1);
 
         return Script.Of(RevealScript(exit, Bag.Draw(Rng)));
     }
@@ -901,11 +915,81 @@ public sealed class GameState
         }
     }
 
+    /// <summary>Whether a command is one of the actions <paramref name="action"/> stands for.</summary>
+    private static bool Spends(GameCommand command, GrantedAction action) => (command, action) switch
+    {
+        (Move, GrantedAction.Move) or (Reveal, GrantedAction.Reveal) or (Dig, GrantedAction.Dig) => true,
+        _ => false,
+    };
+
+    /// <summary>Whether a common action can be paid for — out of what an ability
+    /// granted if it granted this one, out of the turn's actions otherwise.</summary>
+    private bool CannotPay(GrantedAction action, int cost) =>
+        Granted?.Action != action && ActionPoints < cost;
+
+    private void Pay(GrantedAction action, int cost)
+    {
+        if (Granted is { } granted && granted.Action == action)
+        {
+            Granted = granted.Remaining > 1 ? granted with { Remaining = granted.Remaining - 1 } : null;
+        }
+        else
+        {
+            ActionPoints -= cost;
+        }
+    }
+
+    /// <summary>What Illuminer, Sprinter and Excaver buy, and how many of it.</summary>
+    private static (GrantedAction Action, int Count)? GrantOf(string ability) => ability switch
+    {
+        AbilityIds.Illuminer => (GrantedAction.Reveal, 2),
+        AbilityIds.Sprinter => (GrantedAction.Move, 2),
+        AbilityIds.Excaver => (GrantedAction.Dig, 1),
+        _ => null,
+    };
+
+    /// <summary>
+    /// Why an ability that aims at nothing could not be played right now, or
+    /// <c>null</c> if it could. A hint for the interface, like <see cref="Steps"/>.
+    /// </summary>
+    public string? AbilityUnavailable(string ability)
+    {
+        if (AbilityRejection(ability) is { } rejection)
+        {
+            return rejection;
+        }
+
+        // Paying for actions there is nothing to spend on would only waste a point.
+        return GrantOf(ability)?.Action switch
+        {
+            GrantedAction.Reveal when !Exits().Any() => "Rien à révéler d'ici.",
+            GrantedAction.Move when !Steps().Any() => "Nulle part où aller d'ici.",
+            GrantedAction.Dig when !DigTargets().Any() => "Aucun Éboulis à portée.",
+            null => "Cette capacité vise quelqu'un.",
+            _ => null,
+        };
+    }
+
+    private Script ExecuteGrant(string ability)
+    {
+        if (AbilityUnavailable(ability) is { } rejection)
+        {
+            return Script.Refuse(rejection);
+        }
+
+        var (action, count) = GrantOf(ability)!.Value;
+        ActionPoints -= AbilityCost(ability)!.Value;
+        Granted = new GrantedActions(action, count);
+
+        return Script.Of(new AbilityUsed(CurrentExplorer.Id, ability));
+    }
+
     /// <summary>What each ability the engine plays costs in actions.</summary>
     private static int? AbilityCost(string ability) => ability switch
     {
         AbilityIds.Guerir => 1,
         AbilityIds.Ranimer => 3,
+        AbilityIds.Illuminer or AbilityIds.Sprinter or AbilityIds.Excaver => 1,
         _ => null,
     };
 
@@ -943,6 +1027,7 @@ public sealed class GameState
         return use.Ability switch
         {
             AbilityIds.Guerir or AbilityIds.Ranimer => ExecuteRemoteHeal(use),
+            AbilityIds.Illuminer or AbilityIds.Sprinter or AbilityIds.Excaver => ExecuteGrant(use.Ability),
             _ => Script.Refuse($"Capacité pas encore jouée : {use.Ability}."),
         };
     }
@@ -1127,7 +1212,7 @@ public sealed class GameState
             return Script.Refuse(down);
         }
 
-        if (ActionPoints < 2)
+        if (CannotPay(GrantedAction.Dig, 2))
         {
             return Script.Refuse("Creuser coûte deux points d'action.");
         }
@@ -1144,7 +1229,7 @@ public sealed class GameState
             return Script.Refuse($"Pas d'Éboulis sur {dig.Cell}.");
         }
 
-        ActionPoints -= 2;
+        Pay(GrantedAction.Dig, 2);
         return Script.Of(new RubbleCleared(dig.Cell));
     }
 
@@ -1856,6 +1941,7 @@ public sealed class GameState
         }
 
         HasOverexerted = false;
+        Granted = null;
 
         // Those who got out, and those the mountain kept, have no actions to take.
         ActionPoints = CurrentExplorer switch

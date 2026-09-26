@@ -18,6 +18,15 @@ public static class AbilityIds
     /// <summary>La Guérisseuse, passive — a Stumble gives her a heart back instead.</summary>
     public const string Survivante = "survivante";
 
+    /// <summary>Le Guide, 1 PA — Révéler twice.</summary>
+    public const string Illuminer = "illuminer";
+
+    /// <summary>Le Gredin, 1 PA — Se déplacer twice.</summary>
+    public const string Sprinter = "sprinter";
+
+    /// <summary>Le Contremaître, 1 PA — Creuser.</summary>
+    public const string Excaver = "excaver";
+
     /// <summary>La Guérisseuse — another Explorer in sight, 2 tiles or less, regains 2 ♥.</summary>
     public const string Guerir = "guerir";
 
