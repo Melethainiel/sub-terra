@@ -9,8 +9,9 @@ namespace SubTerra.App;
 
 /// <summary>
 /// Drives a game from the keyboard and mouse. It owns this machine's
-/// <see cref="GameState"/> and redraws the board after each command — no animation
-/// yet, just the truth.
+/// <see cref="GameState"/> and redraws the board after each command, handing the
+/// board whatever events the command produced so a tile can show what just
+/// happened to it.
 /// </summary>
 /// <remarks>
 /// On a networked table every peer runs the same game from the same seed and applies
@@ -578,7 +579,7 @@ public partial class AppRoot : Node3D
         }
 
         TrackFacing(actor, command);
-        Refresh();
+        Refresh(result.Events);
         Say(Describe(result.Events));
 
         if (Session.IsOnline)
@@ -616,7 +617,7 @@ public partial class AppRoot : Node3D
         }
 
         TrackFacing(actor, command);
-        Refresh();
+        Refresh(result.Events);
         Say(Describe(result.Events));
         Rpc(nameof(Play), line, _game.Fingerprint);
     }
@@ -637,7 +638,7 @@ public partial class AppRoot : Node3D
         var result = _game.Execute(command);
 
         TrackFacing(actor, command);
-        Refresh();
+        Refresh(result.Events);
         Say(Describe(result.Events));
 
         if (_game.Fingerprint != fingerprint)
@@ -791,7 +792,7 @@ public partial class AppRoot : Node3D
         }
 
         _option = option;
-        _board.Render(_game.Board, Previewed());
+        _board.Render(_game.Board, Previewed(), rubble: _game.Rubble);
         _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
         _hud.Highlight(_option);
     }
@@ -818,7 +819,14 @@ public partial class AppRoot : Node3D
             ? decision.Options[_option].Cell
             : null;
 
-    private void Refresh()
+    /// <param name="justHappened">
+    /// The events the command just settled produced, if this call follows one — a
+    /// trap that sprang, a ruin that came down — passed straight to the board so the
+    /// tile in question can show it happening instead of just landing in its new
+    /// state. Left out for a redraw that answers no command of its own: a fresh seat
+    /// at the table, a camera toggle, a decision preview.
+    /// </param>
+    private void Refresh(IReadOnlyList<GameEvent>? justHappened = null)
     {
         // A fresh question is shown with its first answer laid out; an answered one
         // leaves nothing hanging over the board.
@@ -833,7 +841,7 @@ public partial class AppRoot : Node3D
             _runSteps.Clear();
         }
 
-        _board.Render(_game.Board, Previewed());
+        _board.Render(_game.Board, Previewed(), justHappened, _game.Rubble);
         _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
         // Before the highlights: in the FPS view the camera decides what the
         // crosshair rests on, and that is the cell they have to light up.

@@ -1,5 +1,6 @@
 using Godot;
 using SubTerra.Core.Board;
+using SubTerra.Core.Game;
 using SubTerra.Core.Tiles;
 
 namespace SubTerra.Presentation;
@@ -96,7 +97,22 @@ public partial class BoardView : Node3D
     /// up for a tile just out of the bag. It is drawn like any other, because that is
     /// the whole point: the choice is made by looking at the temple, not at a label.
     /// </param>
-    public void Render(TempleBoard board, (Cell Cell, PlacedTile Tile)? pending = null)
+    /// <param name="justHappened">
+    /// What the command just settled did, if anything — passed on only to the tile
+    /// whose cell an event names, so a spike trap can jab or a ruin can come down
+    /// once, right when it happens, instead of on every redraw of the board.
+    /// </param>
+    /// <param name="rubble">
+    /// Every cell currently buried, straight from <c>GameState.Rubble</c> — a Ruins
+    /// tile checks itself against this on every redraw, not just the one where it
+    /// changes, so it still matches the board after a redraw that is about someone
+    /// else's turn entirely.
+    /// </param>
+    public void Render(
+        TempleBoard board,
+        (Cell Cell, PlacedTile Tile)? pending = null,
+        IReadOnlyList<GameEvent>? justHappened = null,
+        IReadOnlySet<Cell>? rubble = null)
     {
         foreach (var child in GetChildren())
         {
@@ -105,16 +121,20 @@ public partial class BoardView : Node3D
 
         foreach (var (cell, tile) in board.Tiles)
         {
-            AddTile(cell, tile);
+            AddTile(cell, tile, justHappened, rubble);
         }
 
         if (pending is { } laid)
         {
-            AddTile(laid.Cell, laid.Tile);
+            AddTile(laid.Cell, laid.Tile, justHappened, rubble);
         }
     }
 
-    private void AddTile(Cell cell, PlacedTile tile)
+    private void AddTile(
+        Cell cell,
+        PlacedTile tile,
+        IReadOnlyList<GameEvent>? justHappened,
+        IReadOnlySet<Cell>? rubble)
     {
         if (SceneFor(tile.Definition) is not { } scene)
         {
@@ -131,6 +151,40 @@ public partial class BoardView : Node3D
         AddGlow(node, tile.Definition.Kind);
         ScatterRubble(node, cell);
         ScatterStalactites(node, cell);
+
+        // Snapped to the board's truth first, so the animation an event triggers
+        // right below always starts from — and lands back on — the right look.
+        if (node is IRubbleAwareTile rubbleAware)
+        {
+            rubbleAware.SetBuried(rubble?.Contains(cell) ?? false);
+        }
+
+        Announce(node, cell, justHappened);
+    }
+
+    /// <summary>The cell an event happened at, for the events a tile might care about.</summary>
+    private static Cell? CellOf(GameEvent @event) => @event switch
+    {
+        TrapSprung sprung => sprung.Cell,
+        RuinsCollapsed collapsed => collapsed.Cell,
+        RubbleCleared cleared => cleared.Cell,
+        GuardianClearedRubble guardian => guardian.Cleared,
+        _ => null,
+    };
+
+    private static void Announce(Node3D node, Cell cell, IReadOnlyList<GameEvent>? justHappened)
+    {
+        if (node is not ITileEventListener listener || justHappened is null)
+        {
+            return;
+        }
+
+        var here = justHappened.Where(e => CellOf(e) == cell).ToList();
+
+        if (here.Count > 0)
+        {
+            listener.Announce(here);
+        }
     }
 
     /// <summary>

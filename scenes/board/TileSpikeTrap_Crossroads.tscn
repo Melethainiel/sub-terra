@@ -1,8 +1,9 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/floor_rock.tres" id="floor_rock"]
 [ext_resource type="ShaderMaterial" path="res://resources/materials/wall_rock.tres" id="wall_rock"]
 [ext_resource type="StandardMaterial3D" path="res://resources/materials/spike_metal.tres" id="spike_metal"]
 [ext_resource type="ArrayMesh" path="res://resources/models/cave_crossroads.obj" id="cave"]
+[ext_resource type="Script" path="res://scripts/Presentation/SpikeTrapTile.cs" id="script"]
 
 [sub_resource type="CylinderMesh" id="Cyl_spike"]
 top_radius = 0
@@ -14,6 +15,7 @@ radial_segments = 6
 size = Vector3(3, 0.22, 3)
 
 [node name="TileSpikeTrapCrossroads" type="Node3D"]
+script = ExtResource("script")
 
 [node name="Floor" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.11, 0)
