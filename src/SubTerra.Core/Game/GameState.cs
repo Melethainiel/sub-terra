@@ -515,7 +515,7 @@ public sealed class GameState
             return $"{target} a été engloutie par la lave.";
         }
 
-        if (_rubble.Contains(target))
+        if (_rubble.Contains(target) && !Has(explorer, AbilityIds.Agile))
         {
             return $"{target} est bloquée par un Éboulis.";
         }
@@ -567,15 +567,19 @@ public sealed class GameState
     /// <summary>What the tile does to whoever just walked onto it.</summary>
     private IEnumerable<GameEvent> OnTileEntered(Explorer explorer, Cell cell)
     {
-        if (Board.TileAt(cell)?.Kind != TileKind.SpikeTrap)
+        if (Board.TileAt(cell)?.Kind != TileKind.SpikeTrap || IsWatched(cell))
         {
             yield break;
         }
 
-        var roll = Rng.RollDie();
-        yield return new DieRolled(roll);
+        var die = new Rolled<int>();
 
-        if (roll >= SpikeTrapSafeRoll)
+        foreach (var rolling in RollDie(die))
+        {
+            yield return rolling;
+        }
+
+        if (die.Value >= SpikeTrapSafeRoll)
         {
             yield break;
         }
@@ -591,7 +595,7 @@ public sealed class GameState
     {
         yield return new TrapSprung(cell, TileKind.SpikeTrap);
 
-        foreach (var victim in ExplorersOn(cell).ToList())
+        foreach (var victim in ExplorersOn(cell).Where(victim => !IsWatched(victim.Cell)).ToList())
         {
             foreach (var wound in Wound(victim, SpikeTrapDamage))
             {
@@ -607,7 +611,7 @@ public sealed class GameState
 
         var swept = Board.ConnectedNeighbours(cell).Append(cell);
 
-        foreach (var victim in swept.SelectMany(ExplorersOn).ToList())
+        foreach (var victim in swept.SelectMany(ExplorersOn).Where(victim => !IsWatched(victim.Cell)).ToList())
         {
             foreach (var wound in Wound(victim, DartTrapDamage))
             {
@@ -836,6 +840,67 @@ public sealed class GameState
         return events;
     }
 
+    /// <summary>Whether this explorer's sheet carries that ability.</summary>
+    private static bool Has(Explorer explorer, string ability) =>
+        explorer.Sheet is { } sheet && (sheet.First.Id == ability || sheet.Second.Id == ability);
+
+    /// <summary>Whether the Gredin stands on this tile: no trap goes off on it or hurts anyone there.</summary>
+    private bool IsWatched(Cell cell) =>
+        ExplorersOn(cell).Any(explorer => explorer.IsPlaying && Has(explorer, AbilityIds.Vigilance));
+
+    /// <summary>Where a roll lands, for a script to read once the rerolls are done with.</summary>
+    private sealed class Rolled<T>
+    {
+        public T Value { get; set; } = default!;
+    }
+
+    /// <summary>A d6, with the Archéologue's reroll on offer.</summary>
+    private IEnumerable<GameEvent> RollDie(Rolled<int> die) =>
+        Roll(die, () => Rng.RollDie(), face => new DieRolled(face), face => $"Le dé montre {face}.");
+
+    /// <summary>The Peril die, with the Archéologue's reroll on offer.</summary>
+    private IEnumerable<GameEvent> RollPeril(Rolled<PerilFace> die) =>
+        Roll(die, Rng.RollPeril, face => new PerilRolled(face), face => $"Le dé de Péril montre {face.Name()}.");
+
+    /// <summary>
+    /// Rolls, then — on the Archéologue's own turn, while she has a heart to pay
+    /// with — asks her whether to keep it or pay 1 ♥ and roll again, as often as she
+    /// likes. Every die goes through here, so Aventurière needs no hook of its own
+    /// anywhere else.
+    /// </summary>
+    private IEnumerable<GameEvent> Roll<T>(Rolled<T> die, Func<T> roll, Func<T, GameEvent> announce, Func<T, string> shown)
+    {
+        die.Value = roll();
+        yield return announce(die.Value);
+
+        while (CurrentExplorer is { IsPlaying: true, IsDown: false } adventurer && Has(adventurer, AbilityIds.Aventuriere))
+        {
+            foreach (var asking in Ask(
+                DecisionKind.Reroll,
+                $"{shown(die.Value)} Relancer pour 1 ♥ ?",
+                adventurer.Id,
+                [new DecisionOption("Garder"), new DecisionOption("Relancer (1 ♥)", Explorer: adventurer.Id)]))
+            {
+                yield return asking;
+            }
+
+            if (_answer == 0)
+            {
+                yield break;
+            }
+
+            yield return new AbilityUsed(adventurer.Id, AbilityIds.Aventuriere);
+
+            foreach (var wound in Wound(adventurer, 1))
+            {
+                yield return wound;
+            }
+
+            die.Value = roll();
+            yield return announce(die.Value);
+        }
+    }
+
     /// <summary>What each ability the engine plays costs in actions.</summary>
     private static int? AbilityCost(string ability) => ability switch
     {
@@ -860,7 +925,7 @@ public sealed class GameState
             return $"Capacité inconnue ou pas encore jouée : {ability}.";
         }
 
-        if (CurrentExplorer.Sheet is not { } sheet || (sheet.First.Id != ability && sheet.Second.Id != ability))
+        if (!Has(CurrentExplorer, ability))
         {
             return $"{CurrentExplorer.Name} n'a pas cette capacité.";
         }
@@ -1036,17 +1101,23 @@ public sealed class GameState
         }
 
         ActionPoints--;
+        return Script.Of(Strike(cell));
+    }
 
-        var roll = Rng.RollDie();
-        var events = new List<GameEvent> { new DieRolled(roll) };
+    private IEnumerable<GameEvent> Strike(Cell cell)
+    {
+        var die = new Rolled<int>();
 
-        if (roll >= AttackSuccessRoll)
+        foreach (var rolling in RollDie(die))
         {
-            _guardians.Remove(cell);
-            events.Add(new GuardianEliminated(cell));
+            yield return rolling;
         }
 
-        return Script.Of(events);
+        if (die.Value >= AttackSuccessRoll)
+        {
+            _guardians.Remove(cell);
+            yield return new GuardianEliminated(cell);
+        }
     }
 
     private Script ExecuteDig(Dig dig)
@@ -1390,10 +1461,14 @@ public sealed class GameState
     /// </summary>
     private IEnumerable<GameEvent> ResolvePeril(Explorer explorer)
     {
-        var face = Rng.RollPeril();
-        yield return new PerilRolled(face);
+        var die = new Rolled<PerilFace>();
 
-        var consequences = face switch
+        foreach (var rolling in RollPeril(die))
+        {
+            yield return rolling;
+        }
+
+        var consequences = die.Value switch
         {
             PerilFace.Stumble => Stumble(explorer),
             PerilFace.Lava => Burn(),
@@ -1410,9 +1485,24 @@ public sealed class GameState
         }
     }
 
-    /// <summary>Pushing yourself has a price, and it is collected later.</summary>
-    private IEnumerable<GameEvent> Stumble(Explorer explorer) =>
-        HasOverexerted ? Wound(explorer, 1) : [];
+    /// <summary>
+    /// Pushing yourself has a price, and it is collected later — except by the
+    /// Guérisseuse, whom a stumble gives a heart back instead.
+    /// </summary>
+    private IEnumerable<GameEvent> Stumble(Explorer explorer)
+    {
+        if (!Has(explorer, AbilityIds.Survivante))
+        {
+            return HasOverexerted ? Wound(explorer, 1) : [];
+        }
+
+        if (!explorer.IsPlaying || explorer.Health == explorer.MaxHealth)
+        {
+            return [];
+        }
+
+        return Mend(explorer, 1).Prepend(new AbilityUsed(explorer.Id, AbilityIds.Survivante));
+    }
 
     private IEnumerable<GameEvent> Burn()
     {
@@ -1459,11 +1549,15 @@ public sealed class GameState
             yield break;
         }
 
-        var roll = Rng.RollDie();
-        yield return new DieRolled(roll);
+        var die = new Rolled<int>();
+
+        foreach (var rolling in RollDie(die))
+        {
+            yield return rolling;
+        }
 
         var doomed = standing
-            .Where(entry => entry.Value.Definition.RuinsNumber == roll)
+            .Where(entry => entry.Value.Definition.RuinsNumber == die.Value)
             .Select(entry => entry.Key)
             .ToList();
 
@@ -1500,6 +1594,12 @@ public sealed class GameState
     private IEnumerable<GameEvent> SpringTrapsAround(Explorer explorer)
     {
         var here = explorer.Cell;
+
+        // Whoever the Gredin keeps an eye on cannot set anything off.
+        if (IsWatched(here))
+        {
+            yield break;
+        }
 
         if (Board.TileAt(here)?.Kind == TileKind.SpikeTrap)
         {

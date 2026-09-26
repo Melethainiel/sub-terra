@@ -1013,6 +1013,8 @@ public partial class Hud : CanvasLayer
                 "\nElle est posée à l'essai sur le plateau : molette ou R pour la tourner.",
             DecisionKind.GuardianAwakening =>
                 "\nIl se dresse à l'essai sur le plateau : molette ou R pour changer de case.",
+            DecisionKind.Reroll =>
+                "\nAventurière : autant de relances qu'elle veut, 1 ♥ chacune.",
             _ => string.Empty,
         };
 

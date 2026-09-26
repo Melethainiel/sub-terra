@@ -26,6 +26,9 @@ public enum DecisionKind
 
     /// <summary>The drawn tile joins up more than one way round: which way it is laid.</summary>
     TileOrientation,
+
+    /// <summary>L'Archéologue may pay a heart to roll the die that just fell again.</summary>
+    Reroll,
 }
 
 /// <summary>

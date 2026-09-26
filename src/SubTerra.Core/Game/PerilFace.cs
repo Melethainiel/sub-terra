@@ -24,3 +24,18 @@ public enum PerilFace
     /// <summary>Every guardian in the temple takes a step.</summary>
     ActivateGuardians,
 }
+
+public static class PerilFaceExtensions
+{
+    /// <summary>The symbol's name as the rulebook prints it, for a prompt.</summary>
+    public static string Name(this PerilFace face) => face switch
+    {
+        PerilFace.Stumble => "Trébucher",
+        PerilFace.Lava => "Lave",
+        PerilFace.Collapse => "Effondrement",
+        PerilFace.Trap => "Piège",
+        PerilFace.WakeGuardian => "Réveiller un Gardien",
+        PerilFace.ActivateGuardians => "Activer les Gardiens",
+        _ => face.ToString(),
+    };
+}

@@ -127,8 +127,15 @@ une carte de plus dans le HUD, sur le modèle de celles déjà en place.
    Explorateur de sa tuile. À l'écran, les deux capacités de l'Explorateur
    dont c'est le tour sont les deux dernières colonnes de la carte Actions
    (touches `1` et `2`) ; une capacité pas encore jouée y reste grisée.
-3. **Les capacités passives** (Agile, Vigilance, Survivante, Aventurière) —
-   chacune un seul crochet, aucun nouveau ciblage, le gain le plus rapide.
+3. ~~**Les capacités passives** (Agile, Vigilance, Survivante,
+   Aventurière)~~ — faites. Agile lève l'Éboulis dans `StepRejection`, donc
+   pour Se déplacer, Courir et Explorer. Vigilance : une tuile où se tient le
+   Gredin ne déclenche aucun piège — ni à l'entrée, ni sur la face Piège — et
+   personne n'y perd de ♥ par un piège. Survivante remplace l'effet de
+   Trébucher par +1 ♥. Aventurière passe par un point unique : tout dé
+   (piège à pics, Attaquer, Effondrement, Péril) sort de `Roll`, qui, au tour
+   de l'Archéologue et tant qu'elle tient debout, lui demande de garder ou de
+   relancer pour 1 ♥ (`DecisionKind.Reroll`), autant de fois qu'elle veut.
 4. **Les répétitions d'action commune** (Illuminer, Sprinter, Excaver) — même
    remarque, coût différent seulement.
 5. **Les nouveaux `GameCommand` avec ciblage déjà résolu par ailleurs**
