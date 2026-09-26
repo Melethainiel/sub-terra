@@ -40,7 +40,8 @@ public partial class AbilityShots : Node
             await Settle(3);
             await Shoot("guerir_arme");
             Click(Explorer(1).Cell);
-            await Settle(4);
+            await Settle(8);
+            await Shoot("guerir_coeurs");
             Report("après Guérir sur le Prêtre");
         });
 
@@ -164,6 +165,19 @@ public partial class AbilityShots : Node
             await Settle(25);
             await Shoot("anim_de_2");
             Report("après la fin du tour");
+
+            // Two more turns end the round: the Guardian that rose takes its two steps.
+            for (var turn = 0; turn < 2; turn++)
+            {
+                SettleDecisions();
+                Press(Key.Space);
+                await Settle(3);
+            }
+
+            await Shoot("anim_gardien_1");
+            await Settle(10);
+            await Shoot("anim_gardien_2");
+            Report("fin de la manche");
         });
 
         // No game is played to its end here: the HUD is simply shown the ending.

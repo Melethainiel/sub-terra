@@ -646,6 +646,7 @@ public partial class Hud : CanvasLayer
         _eruptionValue.Text = game.EruptionCountdown.ToString();
         UpdateKeyPips(game.KeysDeposited);
         ShowVolcano(game);
+        _shown = game;
 
         ShowParty(game);
         ShowDecision(game, mine);

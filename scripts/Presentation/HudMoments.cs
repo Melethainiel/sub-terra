@@ -15,6 +15,16 @@ public partial class Hud
 
     private const float DieShown = 1.6f;
 
+    /// <summary>
+    /// Whether this table can start another expedition by itself. A networked one
+    /// cannot — everyone would have to agree on a new temple — so its ending only
+    /// offers the way home.
+    /// </summary>
+    public bool CanReplay { get; set; } = true;
+
+    /// <summary>The game as last shown, for an ending to say who made it out.</summary>
+    private GameState? _shown;
+
     private PanelContainer? _die;
     private Tween? _dieTween;
     private Control? _ending;
@@ -177,9 +187,31 @@ public partial class Hud
         sub.AddThemeColorOverride("font_color", Ink);
         column.AddChild(sub);
 
+        if (_shown is { } game)
+        {
+            var fates = new Label
+            {
+                Text = string.Join("\n", game.Explorers.Select(explorer => $"{explorer.Name} — {Fate(explorer)}")),
+                HorizontalAlignment = HorizontalAlignment.Center,
+            };
+            fates.AddThemeFontSizeOverride("font_size", 13);
+            fates.AddThemeColorOverride("font_color", Ink);
+            column.AddChild(fates);
+
+            var span = new Label { Text = $"Fin à la manche {game.Round + 1}, avec {game.Board.Tiles.Count} tuiles au Temple.", HorizontalAlignment = HorizontalAlignment.Center };
+            span.AddThemeFontSizeOverride("font_size", 12);
+            span.AddThemeColorOverride("font_color", Ink with { A = 0.7f });
+            column.AddChild(span);
+        }
+
         var buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         buttons.AddThemeConstantOverride("separation", 16);
-        buttons.AddChild(EndButton("Nouvelle expédition", again: true));
+
+        if (CanReplay)
+        {
+            buttons.AddChild(EndButton("Nouvelle expédition", again: true));
+        }
+
         buttons.AddChild(EndButton("Accueil", again: false));
         column.AddChild(buttons);
 
@@ -191,6 +223,15 @@ public partial class Hud
         tween.TweenProperty(veil, "color:a", 0.6f, 0.6f);
         tween.TweenProperty(card, "modulate", Colors.White, 0.6f).SetDelay(0.2f);
     }
+
+    private static string Fate(Explorer explorer) => explorer switch
+    {
+        { IsDead: true } => "englouti par la lave",
+        { HasEscaped: true, Carried: ItemKind.Artefact } => "sorti avec l'Artefact",
+        { HasEscaped: true } => "sorti du Temple",
+        { IsDown: true } => "resté à terre dans la montagne",
+        _ => "resté dans la montagne",
+    };
 
     private Button EndButton(string text, bool again)
     {

@@ -323,8 +323,11 @@ public partial class Choreographer : Node3D
             Modulate = colour,
             OutlineModulate = new Color(0f, 0f, 0f, 0.85f),
             OutlineSize = 10,
-            FontSize = 72,
-            PixelSize = 0.006f,
+            FontSize = 48,
+            // The same size on screen however far the camera stands: from above the
+            // whole temple is in frame, and a heart the size of the meeple is a dot.
+            FixedSize = true,
+            PixelSize = 0.0009f,
             Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
             NoDepthTest = true,
             Visible = false,

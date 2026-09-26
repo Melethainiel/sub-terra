@@ -124,6 +124,7 @@ public partial class AppRoot : Node3D
         _hud.ActionRequested += HandleAction;
         _hud.OptionChosen += option => Apply(new Decide(option));
         _hud.OptionPreviewed += ShowOption;
+        _hud.CanReplay = !Session.IsOnline;
         _hud.EndChosen += again =>
         {
             if (again && !Session.IsOnline)
