@@ -112,7 +112,7 @@ public partial class Hud : CanvasLayer
     };
 
     private const string MouseLegend =
-        "Choisis une carte ci-dessous, puis clique la case visée   ·   V : vue FPS ↔ vue du dessus";
+        "Choisis une carte ci-dessous, puis clique la case visée   ·   V : vue FPS ↔ vue du dessus   ·   F1 : aide";
 
     private const string FpsLegend =
         "Souris : regarder   ·   Choisis une carte, puis clique ce qui est devant vous   ·   Échap : vue du dessus";
@@ -220,6 +220,7 @@ public partial class Hud : CanvasLayer
 
         _col.AddChild(BuildNoticeRibbon());
         _col.AddChild(BuildTracker());
+        _col.AddChild(BuildVolcano());
         _col.AddChild(BuildLogScrap());
     }
 
@@ -644,6 +645,7 @@ public partial class Hud : CanvasLayer
         _bagValue.Text = game.Bag.Count.ToString();
         _eruptionValue.Text = game.EruptionCountdown.ToString();
         UpdateKeyPips(game.KeysDeposited);
+        ShowVolcano(game);
 
         ShowParty(game);
         ShowDecision(game, mine);

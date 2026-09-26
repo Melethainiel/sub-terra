@@ -17,6 +17,7 @@ public partial class SettingsScreen : Control
     [
         ("1 / 2", "Capacités de l'Explorateur dont c'est le tour"),
         ("V", "Basculer vue FPS ↔ vue du dessus"),
+        ("F1", "Aide : le but, un tour, les actions, le dé de Péril"),
         ("Échap", "Annuler / revenir à la vue du dessus"),
     ];
 

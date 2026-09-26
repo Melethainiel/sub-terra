@@ -154,8 +154,21 @@ par siège), la graine, la difficulté, et de quel côté du fil on se trouve.
 `AppRoot` détient l'unique `GameState` et redessine tout après chaque commande :
 `BoardView` pour les tuiles, `TokenView` pour les meeples, les Gardiens et les
 objets, `HighlightView` pour ce qu'un clic ferait, `Hud` pour l'expédition, les
-boutons d'action et les arbitrages. Les événements sont surtout affichés en
-texte ; seules quelques tuiles les rejouent déjà. `BoardView` passe à chaque tuile
+boutons d'action et les arbitrages. Les événements d'une commande sont
+**rejoués** par `Choreographer` : un meeple marche case après case, une tuile
+tombe à sa place, un Gardien sort du sol, avance ou s'enfonce, un Explorateur
+s'effondre, les cœurs perdus ou regagnés s'envolent. Il n'anime que vers ce
+qui est déjà dessiné, si bien qu'un redessin en pleine lecture pose chaque
+pièce à sa place ; il signale au HUD le moment où tombe chaque dé et celui de
+la fin de partie. Le journal écrit une ligne par commande — qui a fait quoi,
+et ce qui en est sorti. `F1` ouvre un aide-mémoire des règles, et la plaque
+Volcan suit la piste d'Éruption et la malédiction.
+
+Deux bancs d'essai jouent la vraie interface sans joueur : `_table_shots.tscn`
+et `_ability_shots.tscn`, qui imprime le journal et l'état après chaque étape.
+
+Avant la rejouée, les événements n'étaient qu'affichés en texte ; seules
+quelques tuiles les rejouaient. `BoardView` passe à chaque tuile
 qui implémente `ITileEventListener` les événements qui nomment sa case — le piège
 à pics donne son coup, les Ruines voient leurs éboulis tomber ou disparaître — et
 une tuile `IRubbleAwareTile` se recale sur `GameState.Rubble` à chaque redessin.

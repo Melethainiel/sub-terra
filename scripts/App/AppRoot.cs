@@ -186,6 +186,14 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        // The rules at a glance, whenever — nothing about it touches the game.
+        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F1 })
+        {
+            _hud.ToggleHelp();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
         // Escape is the way anyone tries first to back out of something. A card
         // waiting on a cell comes off the table before anything else does — only a
         // second Escape, with nothing armed, surfaces out of the FPS view.
@@ -766,7 +774,7 @@ public partial class AppRoot : Node3D
 
         TrackFacing(actor, command);
         Refresh(result.Events);
-        Say(Describe(result.Events));
+        Chronicle(actor, command, result.Events);
 
         if (Session.IsOnline)
         {
@@ -804,7 +812,7 @@ public partial class AppRoot : Node3D
 
         TrackFacing(actor, command);
         Refresh(result.Events);
-        Say(Describe(result.Events));
+        Chronicle(actor, command, result.Events);
         Rpc(nameof(Play), line, _game.Fingerprint);
     }
 
@@ -825,7 +833,7 @@ public partial class AppRoot : Node3D
 
         TrackFacing(actor, command);
         Refresh(result.Events);
-        Say(Describe(result.Events));
+        Chronicle(actor, command, result.Events);
 
         if (_game.Fingerprint != fingerprint)
         {
@@ -1298,20 +1306,47 @@ public partial class AppRoot : Node3D
         _hud.Say(string.Join('\n', _log));
     }
 
-    /// <summary>The events of a command, in a line, most interesting first.</summary>
-    private static string Describe(IReadOnlyList<GameEvent> events)
+    /// <summary>
+    /// One line of the log per command: who did what, then whatever came of it —
+    /// « Le Guide révèle — tuile révélée : un Pont ». A plain step says just that.
+    /// </summary>
+    private void Chronicle(ExplorerId actor, GameCommand command, IReadOnlyList<GameEvent> events)
     {
-        var told = events.Select(Tell).Where(line => line is not null);
-        return string.Join("   ·   ", told.DefaultIfEmpty("…"));
+        var what = command switch
+        {
+            Move => "se déplace",
+            Run => "court",
+            Reveal => "révèle",
+            Explore => "explore",
+            Heal => "soigne",
+            Dig => "creuse",
+            Attack => "attaque",
+            PickUpItem => "ramasse",
+            DropItem => "pose son objet",
+            Overexert => "se dépasse",
+            EndTurn => "finit son tour",
+            Decide => "tranche",
+            UseAbility use => $"joue {AbilityName(use.Ability)}",
+            _ => "agit",
+        };
+
+        var told = Describe(events.Where(e => e is not AbilityUsed used || command is not UseAbility { } use || use.Ability != used.Ability).ToList());
+        Say($"{_game.Explorers[actor.Value].Name} {what}{(told.Length > 0 ? $" — {told}" : "")}");
     }
+
+    private static string AbilityName(string id) =>
+        ExplorerRoster.All.SelectMany(sheet => new[] { sheet.First, sheet.Second })
+            .FirstOrDefault(ability => ability.Id == id)?.Name ?? id;
+
+    /// <summary>The events of a command, in a line, most interesting first.</summary>
+    private static string Describe(IReadOnlyList<GameEvent> events) =>
+        string.Join("   ·   ", events.Select(Tell).Where(line => line is not null));
 
     private static string? Tell(GameEvent @event) => @event switch
     {
         TileRevealed revealed => $"tuile révélée : {Say(revealed.Tile.Kind)}",
         TrapSprung trap => $"{Say(trap.Trap)} déclenché !",
-        AbilityUsed used => ExplorerRoster.All
-            .SelectMany(sheet => new[] { sheet.First, sheet.Second })
-            .FirstOrDefault(ability => ability.Id == used.Ability)?.Name ?? used.Ability,
+        AbilityUsed used => AbilityName(used.Ability),
         HealthRegained regained => $"+{regained.Amount} ♥",
         GuardianEliminated => "un Gardien tombe",
         ShieldRaised => "Bouclier levé",
@@ -1333,21 +1368,10 @@ public partial class AppRoot : Node3D
         ExplorerKilled => "englouti par la lave",
         ExplorerEscaped escaped => escaped.WithArtefact ? "sorti avec l'Artefact !" : "sorti du temple",
         GameEnded ended => $"FIN DE PARTIE — {ended.Outcome}",
-        PerilRolled peril => $"Péril : {Say(peril.Face)}",
+        PerilRolled peril => $"Péril : {peril.Face.Name()}",
         DecisionRequired required => $"à trancher : {required.Decision.Prompt}",
         DecisionMade made => $"choix : {made.Chosen.Label}",
         _ => null,
-    };
-
-    private static string Say(PerilFace face) => face switch
-    {
-        PerilFace.Stumble => "faux pas",
-        PerilFace.Lava => "Lave",
-        PerilFace.Collapse => "Effondrement",
-        PerilFace.Trap => "Pièges",
-        PerilFace.WakeGuardian => "un Gardien s'éveille",
-        PerilFace.ActivateGuardians => "les Gardiens s'animent",
-        _ => face.ToString(),
     };
 
     private static string Say(TileKind kind) => kind switch

@@ -169,6 +169,11 @@ public partial class AbilityShots : Node
         // No game is played to its end here: the HUD is simply shown the ending.
         await Scenario("fin", ["guide", "gredin", "contremaitre"], async () =>
         {
+            Press(Key.F1);
+            await Settle(4);
+            await Shoot("aide");
+            Press(Key.F1);
+            await Settle(2);
             _table.GetNode<Hud>("Hud").Cue(new GameEnded(Outcome.Gold));
             await Settle(50);
             await Shoot("fin_or");
