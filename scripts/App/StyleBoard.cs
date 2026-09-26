@@ -110,7 +110,7 @@ public partial class StyleBoard : Node3D
 
         var camera = new Camera3D { Fov = 30f, Current = true };
         AddChild(camera);
-        camera.LookAtFromPosition(new Vector3(0f, 1.1f, 3.4f), new Vector3(0f, 0.6f, 0f), Vector3.Up);
+        camera.LookAtFromPosition(new Vector3(0f, 1.3f, 4.2f), new Vector3(0f, 0.75f, 0f), Vector3.Up);
 
         for (var i = 0; i < 8; i++)
         {
