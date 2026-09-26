@@ -19,6 +19,7 @@ public class CommandCodecTests
         new UseAbility("guerir", new ExplorerId(1)),
         new UseAbility("se-preparer"),
         new UseAbility("ordonner", new ExplorerId(2), Direction.South),
+        new UseAbility("rechercher", Direction: Direction.East, Cell: new Cell(-1, 2)),
         new PickUpItem(ItemKind.Artefact),
         new DropItem(),
         new Attack(),
@@ -61,6 +62,8 @@ public class CommandCodecTests
     [InlineData("ability:guerir:1")]
     [InlineData("ability:guerir:e1:e2")]
     [InlineData("ability:ordonner:e1:dUpwards")]
+    [InlineData("ability:rechercher:c1")]
+    [InlineData("ability:rechercher:c1,2:c3,4")]
     [InlineData("heal:moi")]
     [InlineData("pickup:Sandwich")]
     [InlineData("reveal:North:gauche")]

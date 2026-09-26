@@ -48,6 +48,11 @@ public partial class TokenView : Node3D
                 height: explorer.IsDown ? 0.5f : 1.7f,
                 offset: Fan(rank),
                 lying: explorer.IsDown);
+
+            if (explorer.IsShielded)
+            {
+                AddShield(explorer.Cell, Fan(rank));
+            }
         }
 
         var guardians = stirring is { } woken ? [.. game.Guardians, woken] : game.Guardians;
@@ -98,6 +103,22 @@ public partial class TokenView : Node3D
 
         AddChild(node);
     }
+
+    /// <summary>The Combattante's Bouclier: a ring of gold around her meeple while it holds.</summary>
+    private void AddShield(Cell cell, Vector3 offset) =>
+        AddChild(new MeshInstance3D
+        {
+            Name = "Shield",
+            Mesh = new TorusMesh { InnerRadius = 0.36f, OuterRadius = 0.44f, Rings = 24, RingSegments = 8 },
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = Palette.Key,
+                EmissionEnabled = true,
+                Emission = Palette.Key,
+                EmissionEnergyMultiplier = 1.4f,
+            },
+            Position = BoardView.ToWorld(cell) + offset + new Vector3(0f, 0.9f, 0f),
+        });
 
     private void AddToken(string name, Cell cell, ItemKind item)
     {

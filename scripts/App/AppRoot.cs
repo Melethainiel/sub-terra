@@ -352,7 +352,8 @@ public partial class AppRoot : Node3D
 
         // An ability that aims at nobody is played on the spot; whatever it buys then
         // comes into hand on its own (see Refresh).
-        if (AbilityIn(action) is { } ability && !HealingAbilities.Contains(ability.Id) && ability.Id != AbilityIds.Ordonner)
+        if (AbilityIn(action) is { } ability && !HealingAbilities.Contains(ability.Id)
+            && ability.Id != AbilityIds.Ordonner && !GameState.AimsAtACell(ability.Id))
         {
             Apply(new UseAbility(ability.Id));
             return;
@@ -435,6 +436,7 @@ public partial class AppRoot : Node3D
             && (ability.Id switch
             {
                 AbilityIds.Ordonner => _game.OrderTargets().Any(),
+                _ when GameState.AimsAtACell(ability.Id) => _game.AbilityCells(ability.Id).Any(),
                 _ when HealingAbilities.Contains(ability.Id) => _game.HealTargets(ability.Id).Any(),
                 _ => _game.AbilityUnavailable(ability.Id) is null,
             }),
@@ -539,6 +541,20 @@ public partial class AppRoot : Node3D
 
             case "ability1" or "ability2" when AbilityIn(_armed)?.Id == AbilityIds.Ordonner:
                 Order(cell);
+                break;
+
+            case "ability1" or "ability2" when AbilityIn(_armed) is { } aimed && GameState.AimsAtACell(aimed.Id):
+                Disarm();
+
+                if (_game.AbilityAt(aimed.Id, cell) is { } command)
+                {
+                    Apply(command);
+                }
+                else
+                {
+                    Say($"{aimed.Name} ne vise pas {cell}.");
+                }
+
                 break;
 
             case "heal" or "ability1" or "ability2":
@@ -1178,6 +1194,21 @@ public partial class AppRoot : Node3D
 
                 break;
 
+            case "ability1" or "ability2" when AbilityIn(_armed) is { } aimed && GameState.AimsAtACell(aimed.Id):
+                var hint = aimed.Id switch
+                {
+                    AbilityIds.Lunette or AbilityIds.Rechercher => HighlightView.Hint.Unknown,
+                    AbilityIds.Demolir => HighlightView.Hint.Rubble,
+                    _ => HighlightView.Hint.Enemy,
+                };
+
+                foreach (var cell in _game.AbilityCells(aimed.Id))
+                {
+                    hints[cell] = hint;
+                }
+
+                break;
+
             case "ability1" or "ability2" when AbilityIn(_armed)?.Id == AbilityIds.Ordonner:
                 if (_orderee is { } orderee)
                 {
@@ -1253,6 +1284,8 @@ public partial class AppRoot : Node3D
         ShieldRaised => "Bouclier levé",
         ShieldLowered => "Bouclier baissé",
         TileConsolidated => "tuile consolidée",
+        WallDemolished => "un mur tombe",
+        TileReturned returned => $"{Say(returned.Tile.Kind)} retourne au sac",
         HealthLost lost => $"−{lost.Amount} ♥",
         ExplorerWentDown => "à terre !",
         GuardianAppeared => "un Gardien s'éveille",

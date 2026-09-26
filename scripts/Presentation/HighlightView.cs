@@ -27,6 +27,9 @@ public partial class HighlightView : Node3D
 
         /// <summary>Someone a heal would reach.</summary>
         Ally,
+
+        /// <summary>Enemies an ability would strike.</summary>
+        Enemy,
     }
 
     /// <summary>Just above the floor slab, so the patch reads as light on the stone.</summary>
@@ -59,6 +62,7 @@ public partial class HighlightView : Node3D
             Hint.Rubble => Palette.Rubble,
             Hint.Choice => Palette.Choice,
             Hint.Ally => Palette.Support,
+            Hint.Enemy => Palette.Combat,
             _ => Palette.Step,
         };
 

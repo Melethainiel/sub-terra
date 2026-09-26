@@ -103,6 +103,9 @@ public sealed class TempleBoard
 
     public bool IsDemolished(Cell a, Cell b) => _demolished.Contains(new CellEdge(a, b));
 
+    /// <summary>Every wall knocked down so far.</summary>
+    public IReadOnlyCollection<CellEdge> Demolished => _demolished;
+
     /// <summary>
     /// Two tiles are connected when they are adjacent and no wall separates them.
     /// An open side laid against a neighbour's wall does not connect: the wall counts.

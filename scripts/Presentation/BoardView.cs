@@ -128,7 +128,68 @@ public partial class BoardView : Node3D
         {
             AddTile(laid.Cell, laid.Tile, justHappened, rubble);
         }
+
+        foreach (var edge in board.Demolished)
+        {
+            AddBreach(edge);
+        }
     }
+
+    /// <summary>
+    /// Where the Sapeur knocked a wall down: the rock is carved in one piece and
+    /// cannot be opened after the fact, so the breach is marked instead — a spill of
+    /// broken stone across the join and a light showing through it. A stand-in until
+    /// the tiles get walls that can actually come down.
+    /// </summary>
+    private void AddBreach(CellEdge edge)
+    {
+        var middle = (ToWorld(edge.Low) + ToWorld(edge.High)) / 2f;
+        var across = (ToWorld(edge.High) - ToWorld(edge.Low)).Normalized().Cross(Vector3.Up);
+        var breach = new Node3D { Name = $"Breach_{edge}", Position = middle };
+
+        if (RubbleMaterial.Value is { } material)
+        {
+            for (var i = 0; i < 5; i++)
+            {
+                var size = 0.18f + 0.05f * (i % 3);
+                breach.AddChild(new MeshInstance3D
+                {
+                    Mesh = new BoxMesh { Size = new Vector3(size, size * 0.7f, size) },
+                    MaterialOverride = material,
+                    Position = across * (-0.6f + 0.3f * i) + new Vector3(0f, size * 0.35f, 0f),
+                    RotationDegrees = new Vector3(0f, 37f * i, 0f),
+                });
+            }
+        }
+
+        breach.AddChild(new OmniLight3D
+        {
+            Position = new Vector3(0f, 1.2f, 0f),
+            LightColor = Palette.Rubble,
+            LightEnergy = 2.2f,
+            OmniRange = 2.6f,
+        });
+
+        AddChild(breach);
+    }
+
+    /// <summary>The Contremaître's Consolidation marker: a plain disc of dressed stone in
+    /// the middle of the floor, saying the tile's own rules are off.</summary>
+    private static void AddConsolidationMarker(Node3D tileNode) =>
+        tileNode.AddChild(new MeshInstance3D
+        {
+            Name = "Consolidation",
+            Mesh = new CylinderMesh { TopRadius = 0.42f, BottomRadius = 0.46f, Height = 0.05f, RadialSegments = 20 },
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.55f, 0.52f, 0.47f),
+                Roughness = 0.9f,
+                EmissionEnabled = true,
+                Emission = Palette.Meta,
+                EmissionEnergyMultiplier = 0.25f,
+            },
+            Position = new Vector3(0f, 0.025f, 0f),
+        });
 
     private void AddTile(
         Cell cell,
@@ -151,6 +212,11 @@ public partial class BoardView : Node3D
         AddGlow(node, tile.Definition.Kind);
         ScatterRubble(node, cell);
         ScatterStalactites(node, cell);
+
+        if (tile.Consolidated)
+        {
+            AddConsolidationMarker(node);
+        }
 
         // Snapped to the board's truth first, so the animation an event triggers
         // right below always starts from — and lands back on — the right look.

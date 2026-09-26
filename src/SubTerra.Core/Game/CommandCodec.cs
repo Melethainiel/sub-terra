@@ -26,6 +26,7 @@ public static class CommandCodec
             use.Ability,
             use.Target is { } target ? $"e{target.Value}" : null,
             use.Direction is { } direction ? $"d{direction}" : null,
+            use.Cell is { } cell ? $"c{cell.Column},{cell.Row}" : null,
         }.OfType<string>()),
         PickUpItem pickUp => $"pickup:{pickUp.Item}",
         DropItem => "drop",
@@ -100,12 +101,13 @@ public static class CommandCodec
 
     /// <summary>
     /// What an ability aims at, each tagged: <c>e3</c> an Explorer, <c>dSouth</c> a
-    /// direction. Anything untagged, repeated or unreadable spoils the whole line.
+    /// direction, <c>c3,-1</c> a cell. Anything untagged, repeated or unreadable spoils the whole line.
     /// </summary>
     private static UseAbility? Ability(string ability, string[] aims)
     {
         ExplorerId? target = null;
         Direction? direction = null;
+        Cell? cell = null;
 
         foreach (var aim in aims)
         {
@@ -117,12 +119,15 @@ public static class CommandCodec
                 case ['d', .. var way] when direction is null && Way(way) is { } parsed:
                     direction = parsed;
                     break;
+                case ['c', .. var where] when cell is null && Where(where) is { } spot:
+                    cell = spot;
+                    break;
                 default:
                     return null;
             }
         }
 
-        return new UseAbility(ability, target, direction);
+        return new UseAbility(ability, target, direction, cell);
     }
 
     /// <summary>Ability names are lower-case words and dashes, never anything the

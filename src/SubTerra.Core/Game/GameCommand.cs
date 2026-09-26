@@ -40,9 +40,14 @@ public sealed record Heal(ExplorerId Target) : GameCommand;
 /// <see cref="Explorers.AbilityIds">stable name</see>. What it costs and what it may
 /// aim at belong to the ability; <paramref name="Target"/> names an Explorer for
 /// those that aim at one, and <paramref name="Direction"/> a way to go for those that
-/// send someone somewhere.
+/// send someone somewhere or face a wall, and <paramref name="Cell"/> a tile for those
+/// that aim at one.
 /// </summary>
-public sealed record UseAbility(string Ability, ExplorerId? Target = null, Direction? Direction = null) : GameCommand;
+public sealed record UseAbility(
+    string Ability,
+    ExplorerId? Target = null,
+    Direction? Direction = null,
+    Cell? Cell = null) : GameCommand;
 
 /// <summary>Take something off your tile. 1 action.</summary>
 public sealed record PickUpItem(ItemKind Item) : GameCommand;

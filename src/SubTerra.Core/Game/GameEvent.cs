@@ -64,6 +64,12 @@ public sealed record TrapSprung(Cell Cell, TileKind Trap) : GameEvent;
 /// <summary>An Explorer played one of their own abilities; its effects follow.</summary>
 public sealed record AbilityUsed(ExplorerId Explorer, string Ability) : GameEvent;
 
+/// <summary>Démolir: the wall on that side of the tile is gone for the rest of the game.</summary>
+public sealed record WallDemolished(Cell From, Direction Direction) : GameEvent;
+
+/// <summary>Érudite: the tile she did not keep goes back in the bag.</summary>
+public sealed record TileReturned(TileDefinition Tile) : GameEvent;
+
 /// <summary>Se préparer: the Bouclier goes up until her next turn.</summary>
 public sealed record ShieldRaised(ExplorerId Explorer) : GameEvent;
 

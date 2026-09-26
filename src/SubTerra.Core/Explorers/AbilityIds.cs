@@ -39,6 +39,27 @@ public static class AbilityIds
     /// <summary>La Combattante, 1 PA — no heart lost until her next turn, which cannot use it again.</summary>
     public const string SePreparer = "se-preparer";
 
+    /// <summary>L'Archéologue, passive — draws two tiles, keeps one, puts the other back.</summary>
+    public const string Erudite = "erudite";
+
+    /// <summary>L'Aristocrate, 2 PA, ×3 — lays a Journal tile against any tile of the Temple.</summary>
+    public const string Rechercher = "rechercher";
+
+    /// <summary>La Tireuse d'élite, 1 PA — reveals a tile in sight, 3 tiles or less away.</summary>
+    public const string Lunette = "lunette";
+
+    /// <summary>La Tireuse d'élite, 1 PA — eliminates an enemy in sight, 3 tiles or less, not on her tile.</summary>
+    public const string TirDePrecision = "tir-de-precision";
+
+    /// <summary>Le Sapeur, 1 PA — clears the enemies off a neighbouring connected tile; those there lose 1 ♥.</summary>
+    public const string Grenade = "grenade";
+
+    /// <summary>Le Sapeur, 1 PA, ×3 — knocks down a wall beside him.</summary>
+    public const string Demolir = "demolir";
+
+    /// <summary>Le Prêtre, 3 PA — clears the enemies off any tile but his own.</summary>
+    public const string Purifier = "purifier";
+
     /// <summary>La Guérisseuse — another Explorer in sight, 2 tiles or less, regains 2 ♥.</summary>
     public const string Guerir = "guerir";
 

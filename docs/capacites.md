@@ -150,9 +150,21 @@ une carte de plus dans le HUD, sur le modèle de celles déjà en place.
    `PlacedTile.Consolidated` : la tuile garde son dessin mais joue comme une
    Normale ; quatre usages par partie (`GameState.UsesLeft`). Ordonner fait
    faire un pas à un autre Explorateur debout ; `UseAbility` porte pour cela
-   une direction. Restent à dessiner : le Bouclier sur le meeple et le
-   marqueur de Consolidation sur la tuile.
-6. **Les ciblages à bâtir en dernier** — « tuile adjacente pas la sienne »
-   (Grenade), « n'importe quelle tuile » (Rechercher, Purifier), « ce mur-ci »
-   (Démolir) : chacun n'est utile qu'à une ou deux capacités, ce qui les rend
-   moins urgents que la ligne de vue.
+   une direction.
+6. ~~**Les ciblages à bâtir en dernier** et Érudite~~ — faits. Lunette de
+   visée, Tir de précision, Grenade, Purifier, Démolir et Rechercher se visent
+   en pointant une case : le moteur dit lesquelles (`AbilityCells`) et quelle
+   commande un clic envoie (`AbilityAt`), l'écran ne fait que peindre et
+   transmettre. Lunette suit chaque ligne de vue jusqu'à son bout et révèle
+   le vide qui s'y ouvre à trois tuiles ou moins. Démolir vise la case de
+   l'autre côté du mur ; une brèche se révèle et se traverse comme un côté
+   ouvert. Rechercher pose, dans l'ordre, les trois tuiles Journal hors sac
+   contre n'importe quelle issue du Temple. Érudite pioche deux tuiles et
+   demande laquelle poser (`DecisionKind.TileChoice`), l'autre retourne au
+   sac.
+
+**Les vingt capacités sont jouées.** Côté dessin, trois marqueurs provisoires
+en attendant les vrais modèles : un éboulis éclairé sur une brèche (la roche
+taillée d'une pièce ne s'ouvre pas encore), un disque de pierre sur une tuile
+consolidée, un anneau d'or autour de la Combattante derrière son Bouclier.
+

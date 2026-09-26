@@ -46,6 +46,9 @@ public sealed class GameState
     private readonly List<Cell> _guardians = [];
     private readonly HashSet<Cell> _rubble = [];
 
+    /// <summary>The Journal tiles still set aside for the Aristocrate's Rechercher.</summary>
+    private readonly Queue<TileDefinition> _journals = new(TileCatalog.CreateJournalTiles());
+
     /// <summary>How many times each limited ability has been played, by whom.</summary>
     private readonly Dictionary<(ExplorerId Explorer, string Ability), int> _uses = [];
     private readonly HashSet<Cell> _flooded = [];
@@ -242,6 +245,14 @@ public sealed class GameState
 
             Mix(Board.Tiles.Count(tile => tile.Value.Consolidated));
 
+            foreach (var edge in Board.Demolished.OrderBy(edge => edge.Low.Row).ThenBy(edge => edge.Low.Column).ThenBy(edge => edge.High.Row).ThenBy(edge => edge.High.Column))
+            {
+                Mix(edge.Low.Column);
+                Mix(edge.Low.Row);
+                Mix(edge.High.Column);
+                Mix(edge.High.Row);
+            }
+
             foreach (var explorer in _explorers)
             {
                 Mix(explorer.Health);
@@ -285,7 +296,8 @@ public sealed class GameState
         {
             var target = CurrentExplorer.Cell.Neighbour(direction);
 
-            if (tile.IsOpen(direction) && !Board.IsOccupied(target) && Board.Bounds.Contains(target))
+            if ((tile.IsOpen(direction) || Board.IsDemolished(CurrentExplorer.Cell, target))
+                && !Board.IsOccupied(target) && Board.Bounds.Contains(target))
             {
                 yield return direction;
             }
@@ -689,7 +701,45 @@ public sealed class GameState
 
         Pay(GrantedAction.Reveal, 1);
 
-        return Script.Of(RevealScript(exit, Bag.Draw(Rng)));
+        return Script.Of(DrawAndLay(exit));
+    }
+
+    /// <summary>
+    /// Draws the tile for an exit — two for the Archéologue, who keeps one and puts
+    /// the other back (Érudite) — then lays it.
+    /// </summary>
+    private IEnumerable<GameEvent> DrawAndLay(TempleExit exit)
+    {
+        var drawn = Bag.Draw(Rng);
+
+        if (Has(CurrentExplorer, AbilityIds.Erudite) && !Bag.IsEmpty)
+        {
+            TileDefinition[] pair = [drawn, Bag.Draw(Rng)];
+
+            foreach (var asking in Ask(
+                DecisionKind.TileChoice,
+                $"Érudite : quelle tuile poser en {exit.Target} ? L'autre retourne au sac.",
+                CurrentExplorer.Id,
+                [.. pair.Select(tile => new DecisionOption(
+                    $"{tile.Kind.Name()} ({tile.OpenSides.OpeningCount()} galeries)",
+                    exit.Target,
+                    Tile: Orientations(exit, tile)[0]))]))
+            {
+                yield return asking;
+            }
+
+            drawn = pair[_answer];
+            var putBack = pair[1 - _answer];
+            Bag.Return(putBack);
+
+            yield return new AbilityUsed(CurrentExplorer.Id, AbilityIds.Erudite);
+            yield return new TileReturned(putBack);
+        }
+
+        foreach (var consequence in RevealScript(exit, drawn))
+        {
+            yield return consequence;
+        }
     }
 
     /// <summary>
@@ -993,6 +1043,11 @@ public sealed class GameState
             return null;
         }
 
+        if (AimsAtACell(ability))
+        {
+            return Aims(ability).Any() ? null : "Aucune cible à portée.";
+        }
+
         // Paying for actions there is nothing to spend on would only waste a point.
         return GrantOf(ability)?.Action switch
         {
@@ -1022,6 +1077,8 @@ public sealed class GameState
     private static int? UseLimit(string ability) => ability switch
     {
         AbilityIds.Consolider => 4,
+        AbilityIds.Demolir => 3,
+        AbilityIds.Rechercher => TileCatalog.JournalTileCount,
         _ => null,
     };
 
@@ -1092,6 +1149,184 @@ public sealed class GameState
         return Script.Of(events);
     }
 
+    /// <summary>The abilities aimed by pointing at a tile of the board.</summary>
+    public static bool AimsAtACell(string ability) => ability is
+        AbilityIds.Lunette or AbilityIds.TirDePrecision or AbilityIds.Grenade
+        or AbilityIds.Purifier or AbilityIds.Demolir or AbilityIds.Rechercher;
+
+    /// <summary>
+    /// Every tile a click could aim <paramref name="ability"/> at right now — empty
+    /// ground included, for those that lay a tile or open a wall onto it. A hint for
+    /// the interface; each command is checked again on the way in.
+    /// </summary>
+    public IEnumerable<Cell> AbilityCells(string ability) =>
+        AbilityRejection(ability) is null ? Aims(ability).Select(aim => aim.Cell).Distinct() : [];
+
+    /// <summary>The command a click on <paramref name="cell"/> would send, if it aims anywhere.</summary>
+    public UseAbility? AbilityAt(string ability, Cell cell) =>
+        AbilityRejection(ability) is null ? Aims(ability).FirstOrDefault(aim => aim.Cell == cell).Command : null;
+
+    /// <summary>
+    /// What each cell-aimed ability can reach from where the current explorer stands:
+    /// the cell to click, the command it sends, and the exit it opens for those that
+    /// lay a tile. Deterministic, north-east-south-west and row by row.
+    /// </summary>
+    private IEnumerable<(Cell Cell, UseAbility Command, TempleExit? Exit)> Aims(string ability)
+    {
+        var here = CurrentExplorer.Cell;
+
+        switch (ability)
+        {
+            case AbilityIds.Lunette when !Bag.IsEmpty:
+                // Each line in sight, followed to its far end: if that end opens onto
+                // empty ground no further than three tiles out, that ground can be revealed.
+                foreach (var direction in DirectionExtensions.All)
+                {
+                    var cell = here;
+
+                    for (var distance = 0; distance < LunetteRange; distance++)
+                    {
+                        var exit = new TempleExit(cell, direction);
+
+                        if (Board.OpenExits().Contains(exit))
+                        {
+                            yield return (exit.Target, new UseAbility(ability, Direction: direction), exit);
+                            break;
+                        }
+
+                        var next = cell.Neighbour(direction);
+
+                        if (!Board.AreConnected(cell, next) || _rubble.Contains(next))
+                        {
+                            break;
+                        }
+
+                        cell = next;
+                    }
+                }
+
+                break;
+
+            case AbilityIds.TirDePrecision:
+                foreach (var cell in VisibleFrom(here, LunetteRange).Where(cell => cell != here && _guardians.Contains(cell)))
+                {
+                    yield return (cell, new UseAbility(ability, Cell: cell), null);
+                }
+
+                break;
+
+            case AbilityIds.Grenade:
+                foreach (var cell in Board.ConnectedNeighbours(here).Where(_guardians.Contains))
+                {
+                    yield return (cell, new UseAbility(ability, Cell: cell), null);
+                }
+
+                break;
+
+            case AbilityIds.Purifier:
+                foreach (var cell in _guardians.Where(cell => cell != here).Distinct().OrderBy(cell => cell.Row).ThenBy(cell => cell.Column))
+                {
+                    yield return (cell, new UseAbility(ability, Cell: cell), null);
+                }
+
+                break;
+
+            case AbilityIds.Demolir:
+                foreach (var direction in DirectionExtensions.All)
+                {
+                    var beyond = here.Neighbour(direction);
+                    var walled = Board.IsOccupied(beyond)
+                        ? !Board.AreConnected(here, beyond)
+                        : Board.Bounds.Contains(beyond) && Board.TileAt(here) is { } tile
+                            && !tile.IsOpen(direction) && !Board.IsDemolished(here, beyond);
+
+                    if (walled)
+                    {
+                        yield return (beyond, new UseAbility(ability, Direction: direction), null);
+                    }
+                }
+
+                break;
+
+            case AbilityIds.Rechercher when _journals.Count > 0:
+                foreach (var exit in Board.OpenExits().DistinctBy(exit => exit.Target))
+                {
+                    yield return (exit.Target, new UseAbility(ability, Direction: exit.Direction, Cell: exit.From), exit);
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>Lunette de visée and Tir de précision reach this far along a line of sight.</summary>
+    public const int LunetteRange = 3;
+
+    private Script ExecuteAimed(UseAbility use)
+    {
+        if (Aims(use.Ability).Where(aim => aim.Command == use).Select(aim => ((Cell Cell, TempleExit? Exit)?)(aim.Cell, aim.Exit)).FirstOrDefault()
+            is not { } aim)
+        {
+            return Script.Refuse("Cible hors de portée de cette capacité.");
+        }
+
+        var user = CurrentExplorer;
+        ActionPoints -= AbilityCost(use.Ability)!.Value;
+        CountUse(use.Ability);
+
+        return Script.Of(Aimed(user, use, aim.Cell, aim.Exit).Prepend(new AbilityUsed(user.Id, use.Ability)));
+    }
+
+    private IEnumerable<GameEvent> Aimed(Explorer user, UseAbility use, Cell cell, TempleExit? exit)
+    {
+        switch (use.Ability)
+        {
+            case AbilityIds.Lunette:
+                foreach (var consequence in DrawAndLay(exit!.Value))
+                {
+                    yield return consequence;
+                }
+
+                break;
+
+            case AbilityIds.Rechercher:
+                foreach (var consequence in RevealScript(exit!.Value, _journals.Dequeue()))
+                {
+                    yield return consequence;
+                }
+
+                break;
+
+            case AbilityIds.TirDePrecision:
+                _guardians.Remove(cell);
+                yield return new GuardianEliminated(cell);
+                break;
+
+            case AbilityIds.Grenade or AbilityIds.Purifier:
+                while (_guardians.Remove(cell))
+                {
+                    yield return new GuardianEliminated(cell);
+                }
+
+                if (use.Ability == AbilityIds.Grenade)
+                {
+                    foreach (var caught in ExplorersOn(cell).Where(explorer => explorer.IsPlaying).ToList())
+                    {
+                        foreach (var wound in Wound(caught, 1))
+                        {
+                            yield return wound;
+                        }
+                    }
+                }
+
+                break;
+
+            case AbilityIds.Demolir:
+                Board.Demolish(user.Cell, cell);
+                yield return new WallDemolished(user.Cell, use.Direction!.Value);
+                break;
+        }
+    }
+
     /// <summary>Who the Aristocrate could order to move: anyone else standing, still in the Temple.</summary>
     public IEnumerable<ExplorerId> OrderTargets() =>
         AbilityRejection(AbilityIds.Ordonner) is null
@@ -1145,6 +1380,9 @@ public sealed class GameState
         AbilityIds.Ranimer => 3,
         AbilityIds.Illuminer or AbilityIds.Sprinter or AbilityIds.Excaver => 1,
         AbilityIds.Ordonner or AbilityIds.Consolider or AbilityIds.Aneantir or AbilityIds.SePreparer => 1,
+        AbilityIds.Lunette or AbilityIds.TirDePrecision or AbilityIds.Grenade or AbilityIds.Demolir => 1,
+        AbilityIds.Rechercher => 2,
+        AbilityIds.Purifier => 3,
         _ => null,
     };
 
@@ -1189,6 +1427,7 @@ public sealed class GameState
             AbilityIds.Guerir or AbilityIds.Ranimer => ExecuteRemoteHeal(use),
             AbilityIds.Illuminer or AbilityIds.Sprinter or AbilityIds.Excaver => ExecuteGrant(use.Ability),
             AbilityIds.Ordonner => ExecuteOrder(use),
+            _ when AimsAtACell(use.Ability) => ExecuteAimed(use),
             AbilityIds.Consolider or AbilityIds.Aneantir or AbilityIds.SePreparer => ExecuteOnTheSpot(use.Ability),
             _ => Script.Refuse($"Capacité pas encore jouée : {use.Ability}."),
         };

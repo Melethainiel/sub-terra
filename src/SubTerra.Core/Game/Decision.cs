@@ -29,6 +29,9 @@ public enum DecisionKind
 
     /// <summary>L'Archéologue may pay a heart to roll the die that just fell again.</summary>
     Reroll,
+
+    /// <summary>L'Archéologue drew two tiles: which one is laid, the other going back.</summary>
+    TileChoice,
 }
 
 /// <summary>

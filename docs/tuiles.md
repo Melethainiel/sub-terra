@@ -41,7 +41,7 @@ tuiles Normale et Gardien.
 
 ## Encore à définir
 
-- La tuile Journal (réservée à l'Aristocrate).
+- ~~La tuile Journal~~ — `TileJournal_Junction` et `TileJournal_Crossroads` : sol à joints dorés, carnet de cuir.
 
 ## État de l'implémentation
 
@@ -79,5 +79,5 @@ l'Artefact gagne la partie.
 
 ## Encore à définir
 
-- La tuile Journal (réservée à l'Aristocrate).
-- Les dix Explorateurs et leurs vingt capacités : aucune n'est implémentée.
+- ~~La tuile Journal~~ — `TileJournal_Junction` et `TileJournal_Crossroads` : sol à joints dorés, carnet de cuir.
+- ~~Les vingt capacités~~ — toutes jouées, voir `docs/capacites.md`.
