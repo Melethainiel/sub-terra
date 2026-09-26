@@ -79,6 +79,7 @@ public partial class AppRoot : Node3D
     internal GameState Game => _game;
     private BoardView _board = null!;
     private TokenView _tokens = null!;
+    private Choreographer _choreographer = null!;
     private HighlightView _highlights = null!;
     private Hud _hud = null!;
     private Camera3D _camera = null!;
@@ -123,13 +124,28 @@ public partial class AppRoot : Node3D
         _hud.ActionRequested += HandleAction;
         _hud.OptionChosen += option => Apply(new Decide(option));
         _hud.OptionPreviewed += ShowOption;
+        _hud.EndChosen += again =>
+        {
+            if (again && !Session.IsOnline)
+            {
+                // Same party, a temple they have not seen.
+                Session.Seed = (ulong)System.Random.Shared.NextInt64();
+                GetTree().ReloadCurrentScene();
+                return;
+            }
+
+            Multiplayer.MultiplayerPeer?.Close();
+            GetTree().ChangeSceneToFile("res://scenes/app/Home.tscn");
+        };
 
         _board = new BoardView { Name = "BoardView" };
         _tokens = new TokenView { Name = "TokenView" };
         _highlights = new HighlightView { Name = "HighlightView" };
+        _choreographer = new Choreographer { Name = "Choreographer" };
         AddChild(_board);
         AddChild(_highlights);
         AddChild(_tokens);
+        AddChild(_choreographer);
 
         _game = NewGame();
 
@@ -663,8 +679,11 @@ public partial class AppRoot : Node3D
     /// <summary>Sends whatever of Courir's route has been clicked so far as one command.</summary>
     private void SubmitRun()
     {
-        Apply(new Run([.. _runSteps]));
+        // Put down before playing, as every card does: a redraw after the command
+        // would cut its playback short.
+        var route = new Run([.. _runSteps]);
         Disarm();
+        Apply(route);
     }
 
     /// <summary>
@@ -1030,6 +1049,12 @@ public partial class AppRoot : Node3D
 
         _board.Render(_game.Board, Previewed(), justHappened, _game.Rubble);
         _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
+
+        if (justHappened is not null)
+        {
+            _choreographer.Play(justHappened, _board, _tokens, _hud.Cue);
+        }
+
         // Before the highlights: in the FPS view the camera decides what the
         // crosshair rests on, and that is the cell they have to light up.
         PositionCamera();

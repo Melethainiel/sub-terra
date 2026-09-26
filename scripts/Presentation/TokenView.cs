@@ -32,6 +32,9 @@ public partial class TokenView : Node3D
             child.QueueFree();
         }
 
+        _explorerNodes.Clear();
+        _guardianNodes.Clear();
+
         // Several explorers share a tile often enough to matter; fan them out so the
         // player can tell there are two of them.
         var crowd = new Dictionary<Cell, int>();
@@ -41,7 +44,7 @@ public partial class TokenView : Node3D
             var rank = crowd.GetValueOrDefault(explorer.Cell);
             crowd[explorer.Cell] = rank + 1;
 
-            AddMeeple(
+            _explorerNodes[explorer.Id] = AddMeeple(
                 $"Explorer_{explorer.Id.Value}",
                 explorer.Cell,
                 Palette.For(explorer.Id),
@@ -59,7 +62,7 @@ public partial class TokenView : Node3D
 
         foreach (var (cell, index) in guardians.Select((cell, index) => (cell, index)))
         {
-            AddMeeple($"Guardian_{index}", cell, Palette.Guardian, height: 2.1f, offset: Fan(4 + index));
+            _guardianNodes.Add((AddMeeple($"Guardian_{index}", cell, Palette.Guardian, height: 2.1f, offset: Fan(4 + index)), cell));
         }
 
         foreach (var (cell, _) in game.Board.Tiles)
@@ -79,7 +82,19 @@ public partial class TokenView : Node3D
         return new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
     }
 
-    private void AddMeeple(string name, Cell cell, Color colour, float height, Vector3 offset, bool lying = false)
+    private readonly Dictionary<ExplorerId, MeshInstance3D> _explorerNodes = [];
+
+    private readonly List<(MeshInstance3D Node, Cell Cell)> _guardianNodes = [];
+
+    /// <summary>The meeple drawn for an explorer by the last <see cref="Render"/>, if any
+    /// — none for one out of the temple, or seen through their own eyes.</summary>
+    public MeshInstance3D? ExplorerNode(ExplorerId explorer) => _explorerNodes.GetValueOrDefault(explorer);
+
+    /// <summary>The Guardian meeples drawn by the last <see cref="Render"/>, with the cell
+    /// each stands on.</summary>
+    public IReadOnlyList<(MeshInstance3D Node, Cell Cell)> GuardianNodes => _guardianNodes;
+
+    private MeshInstance3D AddMeeple(string name, Cell cell, Color colour, float height, Vector3 offset, bool lying = false)
     {
         var node = new MeshInstance3D
         {
@@ -102,6 +117,7 @@ public partial class TokenView : Node3D
         }
 
         AddChild(node);
+        return node;
     }
 
     /// <summary>The Combattante's Bouclier: a halo of gold over her meeple while it holds —

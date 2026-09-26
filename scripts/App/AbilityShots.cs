@@ -139,6 +139,44 @@ public partial class AbilityShots : Node
             await Shoot("demolir");
         });
 
+        await Scenario("animations", ["guide", "gredin", "contremaitre"], async () =>
+        {
+            Press(Key.R);
+            await Settle(2);
+            Click(Start.Neighbour(Direction.South));
+            await Settle(3);
+            await Shoot("anim_tuile_1");
+            await Settle(6);
+            await Shoot("anim_tuile_2");
+            SettleDecisions();
+            await Settle(30);
+
+            Press(Key.M);
+            await Settle(2);
+            Click(Start.Neighbour(Direction.South));
+            await Settle(4);
+            await Shoot("anim_pas");
+            await Settle(30);
+
+            Press(Key.Space);
+            await Settle(4);
+            await Shoot("anim_de_1");
+            await Settle(25);
+            await Shoot("anim_de_2");
+            Report("après la fin du tour");
+        });
+
+        // No game is played to its end here: the HUD is simply shown the ending.
+        await Scenario("fin", ["guide", "gredin", "contremaitre"], async () =>
+        {
+            _table.GetNode<Hud>("Hud").Cue(new GameEnded(Outcome.Gold));
+            await Settle(50);
+            await Shoot("fin_or");
+            _table.GetNode<Hud>("Hud").Cue(new GameEnded(Outcome.ForgottenForever));
+            await Settle(50);
+            await Shoot("fin_oubli");
+        });
+
         GetTree().Quit();
     }
 

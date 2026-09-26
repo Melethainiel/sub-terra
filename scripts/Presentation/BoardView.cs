@@ -76,6 +76,14 @@ public partial class BoardView : Node3D
     /// <summary>Out of reach: nothing is ever cut when standing inside.</summary>
     private const float NoCutaway = 100f;
 
+    /// <summary>The tiles drawn by the last <see cref="Render"/>, by cell. Names cannot
+    /// be trusted for this: last render's nodes are still in the tree until the frame
+    /// ends, and Godot renames a newcomer that would clash with one of them.</summary>
+    private readonly Dictionary<Cell, Node3D> _tileNodes = [];
+
+    /// <summary>The node drawing the tile on <paramref name="cell"/>, if there is one.</summary>
+    public Node3D? TileNode(Cell cell) => _tileNodes.GetValueOrDefault(cell);
+
     public static Vector3 ToWorld(Cell cell) => new(cell.Column * TileSize, 0f, cell.Row * TileSize);
 
     /// <summary>
@@ -118,6 +126,8 @@ public partial class BoardView : Node3D
         {
             child.QueueFree();
         }
+
+        _tileNodes.Clear();
 
         foreach (var (cell, tile) in board.Tiles)
         {
@@ -222,6 +232,7 @@ public partial class BoardView : Node3D
         var node = scene.Instantiate<Node3D>();
         node.Name = $"Tile_{cell.Column}_{cell.Row}";
         node.Position = ToWorld(cell);
+        _tileNodes[cell] = node;
         node.RotationDegrees = new Vector3(0f, QuarterTurnDegrees * tile.Rotation, 0f);
         AddChild(node);
 
