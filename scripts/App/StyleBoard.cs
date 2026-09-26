@@ -14,27 +14,6 @@ namespace SubTerra.App;
 /// </summary>
 public partial class StyleBoard : Node3D
 {
-    /// <summary>
-    /// One paint per part, by the material name the figure script gives it: how the
-    /// cartoon candidate colours it, how the miniature candidate paints it, how
-    /// metallic and rough that paint is, and how brightly it glows, if it does.
-    /// </summary>
-    private static readonly Dictionary<string, (Color Toon, Color Mini, float Metal, float Rough, float Glow)> Paints = new()
-    {
-        ["Skin"] = (new Color(0.96f, 0.72f, 0.55f), new Color(0.82f, 0.6f, 0.48f), 0f, 0.7f, 0f),
-        ["Cloth"] = (new Color(0.25f, 0.42f, 0.66f), new Color(0.2f, 0.26f, 0.34f), 0f, 0.9f, 0f),
-        ["Coat"] = (new Color(0.9f, 0.64f, 0.2f), new Color(0.52f, 0.45f, 0.29f), 0f, 0.85f, 0f),
-        ["Leather"] = (new Color(0.52f, 0.28f, 0.14f), new Color(0.34f, 0.2f, 0.12f), 0f, 0.6f, 0f),
-        ["Accent"] = (new Color(0.88f, 0.18f, 0.14f), new Color(0.55f, 0.1f, 0.08f), 0f, 0.6f, 0f),
-        ["Metal"] = (new Color(0.82f, 0.8f, 0.72f), new Color(0.78f, 0.76f, 0.74f), 0.9f, 0.3f, 0f),
-        ["Wood"] = (new Color(0.5f, 0.32f, 0.18f), new Color(0.36f, 0.24f, 0.15f), 0f, 0.8f, 0f),
-        ["Flame"] = (new Color(1f, 0.62f, 0.15f), new Color(1f, 0.55f, 0.15f), 0f, 1f, 3f),
-        ["Ash"] = (new Color(0.3f, 0.26f, 0.32f), new Color(0.16f, 0.15f, 0.16f), 0f, 0.9f, 0f),
-        ["Armor"] = (new Color(0.45f, 0.36f, 0.4f), new Color(0.26f, 0.23f, 0.23f), 0.2f, 0.75f, 0f),
-        ["Bone"] = (new Color(0.94f, 0.88f, 0.7f), new Color(0.78f, 0.74f, 0.63f), 0f, 0.6f, 0f),
-        ["Ember"] = (new Color(1f, 0.38f, 0.08f), new Color(1f, 0.32f, 0.06f), 0f, 1f, 4f),
-    };
-
     private bool _toon;
 
     /// <summary>The painted miniature, with a finer ink line and brighter paint so it
@@ -173,19 +152,22 @@ public partial class StyleBoard : Node3D
 
     private void Dress(Node node)
     {
+        // The chosen look is the game's own, from the very same code.
+        if (_hybrid)
+        {
+            Miniature.Dress(node);
+            return;
+        }
+
         if (node is MeshInstance3D mesh && mesh.Mesh is { } shape)
         {
             for (var surface = 0; surface < shape.GetSurfaceCount(); surface++)
             {
                 var name = shape.SurfaceGetMaterial(surface)?.ResourceName ?? "";
 
-                if (Paints.TryGetValue(name, out var paint))
+                if (Miniature.Paints.TryGetValue(name, out var paint))
                 {
-                    mesh.SetSurfaceOverrideMaterial(surface, _toon ? Toon(name, paint) : Mini(paint, _hybrid));
-                }
-                else
-                {
-                    GD.PushWarning($"Pas de peinture pour « {name} » ({mesh.Name}).");
+                    mesh.SetSurfaceOverrideMaterial(surface, _toon ? Toon(paint) : Mini(paint));
                 }
             }
         }
@@ -196,11 +178,11 @@ public partial class StyleBoard : Node3D
         }
     }
 
-    private static Material Toon(string name, (Color Toon, Color Mini, float Metal, float Rough, float Glow) paint)
+    private static Material Toon(Miniature.Paint paint)
     {
         var material = new ShaderMaterial { Shader = GD.Load<Shader>("res://resources/shaders/styles/toon.gdshader") };
-        material.SetShaderParameter("albedo", paint.Toon);
-        material.SetShaderParameter("emission", paint.Toon * paint.Glow);
+        material.SetShaderParameter("albedo", paint.Bright);
+        material.SetShaderParameter("emission", paint.Bright * paint.Glow);
 
         // Fire has no ink line; everything solid does.
         if (paint.Glow == 0f)
@@ -211,22 +193,13 @@ public partial class StyleBoard : Node3D
         return material;
     }
 
-    private static Material Mini((Color Toon, Color Mini, float Metal, float Rough, float Glow) paint, bool hybrid = false)
+    private static Material Mini(Miniature.Paint paint)
     {
         var material = new ShaderMaterial { Shader = GD.Load<Shader>("res://resources/shaders/styles/painted_mini.gdshader") };
-        var colour = hybrid ? paint.Mini.Lerp(paint.Toon, 0.45f) : paint.Mini;
-        material.SetShaderParameter("albedo", colour);
-
-        if (hybrid && paint.Glow == 0f)
-        {
-            var ink = new ShaderMaterial { Shader = GD.Load<Shader>("res://resources/shaders/styles/ink_outline.gdshader") };
-            ink.SetShaderParameter("thickness", 0.016f);
-            material.NextPass = ink;
-        }
-
+        material.SetShaderParameter("albedo", paint.Painted);
         material.SetShaderParameter("metallic", paint.Metal);
         material.SetShaderParameter("roughness", paint.Rough);
-        material.SetShaderParameter("emission", colour * paint.Glow);
+        material.SetShaderParameter("emission", paint.Painted * paint.Glow);
         return material;
     }
 }

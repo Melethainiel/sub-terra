@@ -44,11 +44,12 @@ public partial class TokenView : Node3D
             var rank = crowd.GetValueOrDefault(explorer.Cell);
             crowd[explorer.Cell] = rank + 1;
 
-            _explorerNodes[explorer.Id] = AddMeeple(
+            _explorerNodes[explorer.Id] = AddFigure(
                 $"Explorer_{explorer.Id.Value}",
+                FigureFor(explorer),
+                Miniature.ExplorerBase,
                 explorer.Cell,
                 Palette.For(explorer.Id),
-                height: explorer.IsDown ? 0.5f : 1.7f,
                 offset: Fan(rank),
                 lying: explorer.IsDown);
 
@@ -62,7 +63,7 @@ public partial class TokenView : Node3D
 
         foreach (var (cell, index) in guardians.Select((cell, index) => (cell, index)))
         {
-            _guardianNodes.Add((AddMeeple($"Guardian_{index}", cell, Palette.Guardian, height: 2.1f, offset: Fan(4 + index)), cell));
+            _guardianNodes.Add((AddFigure($"Guardian_{index}", GuardianFigure, Miniature.GuardianBase, cell, livery: null, offset: Fan(4 + index), ring: Palette.Guardian), cell));
         }
 
         foreach (var (cell, _) in game.Board.Tiles)
@@ -78,42 +79,50 @@ public partial class TokenView : Node3D
     private static Vector3 Fan(int rank)
     {
         var angle = rank * Mathf.Tau / 6f;
-        var radius = rank == 0 ? 0f : 0.55f;
+        // Inside a 1.5 m gallery, with room for the bases not to overlap.
+        var radius = rank == 0 ? 0f : 0.5f;
         return new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
     }
 
-    private readonly Dictionary<ExplorerId, MeshInstance3D> _explorerNodes = [];
+    private const string Figures = "res://resources/models/figures/";
+    private const string ExplorerFigure = Figures + "explorer_sketch.glb";
+    private const string GuardianFigure = Figures + "guardian_sketch.glb";
 
-    private readonly List<(MeshInstance3D Node, Cell Cell)> _guardianNodes = [];
+    /// <summary>
+    /// An Explorer's own model, named after their sheet (<c>guide.glb</c>…), or the
+    /// sketch while theirs is not made yet: the cast arrives one figure at a time.
+    /// </summary>
+    private static string FigureFor(Explorer explorer) =>
+        explorer.Sheet is { } sheet && ResourceLoader.Exists($"{Figures}{sheet.Id}.glb")
+            ? $"{Figures}{sheet.Id}.glb"
+            : ExplorerFigure;
+
+    private readonly Dictionary<ExplorerId, Node3D> _explorerNodes = [];
+
+    private readonly List<(Node3D Node, Cell Cell)> _guardianNodes = [];
 
     /// <summary>The meeple drawn for an explorer by the last <see cref="Render"/>, if any
     /// — none for one out of the temple, or seen through their own eyes.</summary>
-    public MeshInstance3D? ExplorerNode(ExplorerId explorer) => _explorerNodes.GetValueOrDefault(explorer);
+    public Node3D? ExplorerNode(ExplorerId explorer) => _explorerNodes.GetValueOrDefault(explorer);
 
     /// <summary>The Guardian meeples drawn by the last <see cref="Render"/>, with the cell
     /// each stands on.</summary>
-    public IReadOnlyList<(MeshInstance3D Node, Cell Cell)> GuardianNodes => _guardianNodes;
+    public IReadOnlyList<(Node3D Node, Cell Cell)> GuardianNodes => _guardianNodes;
 
-    private MeshInstance3D AddMeeple(string name, Cell cell, Color colour, float height, Vector3 offset, bool lying = false)
+    /// <summary>
+    /// A painted miniature on its base. One that is down lies on its side, base and
+    /// all, the way a knocked-over figure does on a real table.
+    /// </summary>
+    private Node3D AddFigure(string name, string figure, float baseRadius, Cell cell, Color? livery, Vector3 offset, bool lying = false, Color? ring = null)
     {
-        var node = new MeshInstance3D
-        {
-            Name = name,
-            Mesh = new CapsuleMesh { Radius = 0.28f, Height = height, RadialSegments = 12 },
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoColor = colour,
-                EmissionEnabled = true,
-                Emission = colour,
-                EmissionEnergyMultiplier = 0.35f,
-            },
-            Position = BoardView.ToWorld(cell) + offset + new Vector3(0f, height / 2f, 0f),
-        };
+        var node = Miniature.Stand(figure, baseRadius, livery, ring ?? livery);
+        node.Name = name;
+        node.Position = BoardView.ToWorld(cell) + offset;
 
         if (lying)
         {
             node.RotationDegrees = new Vector3(90f, 0f, 0f);
-            node.Position = BoardView.ToWorld(cell) + offset + new Vector3(0f, 0.16f, 0f);
+            node.Position += new Vector3(0f, baseRadius, 0f);
         }
 
         AddChild(node);

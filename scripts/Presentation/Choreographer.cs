@@ -331,7 +331,7 @@ public partial class Choreographer : Node3D
             Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
             NoDepthTest = true,
             Visible = false,
-            Position = meeple.Position + new Vector3(0f, 1.4f, 0f),
+            Position = meeple.Position + new Vector3(0f, 2.1f, 0f),
         };
         AddChild(label);
 
