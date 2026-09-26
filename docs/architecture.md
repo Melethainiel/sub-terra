@@ -135,8 +135,13 @@ l'hôte n'aura qu'à n'accepter le `Decide` que de ce joueur-là.
 
 ## Le lobby
 
-`Lobby.tscn` est la scène de départ. On y joue seul, on héberge ou on rejoint une
-adresse, puis chacun prend ses Explorateurs parmi les dix — une carte prise
+Le jeu s'ouvre sur `Home.tscn`, l'accueil : trois portes, Solo, Coopératif et
+Réglages. Les Réglages (`Settings`, `SettingsScreen.tscn`) sauvegardent le plein
+écran et la vue de départ de la table, et reprennent la carte des commandes.
+
+L'accueil ouvre `Lobby.tscn` en disant par quelle porte on est entré
+(`Session.RequestedMode`) : en solo la ligne Héberger/Rejoindre n'existe pas, en
+coopératif on héberge ou on rejoint une adresse. Puis chacun prend ses Explorateurs parmi les dix — une carte prise
 appartient à son joueur, une carte reprise est rendue. En solo on en prend trois,
 qui est le minimum du livret. L'ordre de la liste est l'ordre du tour, et le
 premier porte le médaillon.
@@ -149,8 +154,11 @@ par siège), la graine, la difficulté, et de quel côté du fil on se trouve.
 `AppRoot` détient l'unique `GameState` et redessine tout après chaque commande :
 `BoardView` pour les tuiles, `TokenView` pour les meeples, les Gardiens et les
 objets, `HighlightView` pour ce qu'un clic ferait, `Hud` pour l'expédition, les
-boutons d'action et les arbitrages. Aucune animation — les événements sont
-affichés en texte, pas encore rejoués.
+boutons d'action et les arbitrages. Les événements sont surtout affichés en
+texte ; seules quelques tuiles les rejouent déjà. `BoardView` passe à chaque tuile
+qui implémente `ITileEventListener` les événements qui nomment sa case — le piège
+à pics donne son coup, les Ruines voient leurs éboulis tomber ou disparaître — et
+une tuile `IRubbleAwareTile` se recale sur `GameState.Rubble` à chaque redessin.
 
 Deux vues, purement locales — chaque machine choisit la sienne, rien ne circule.
 La **vue du dessus** cadre le temple entier ; la **vue à la première personne**
