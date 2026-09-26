@@ -20,8 +20,8 @@ public partial class TableShots : Node
     public override async void _Ready()
     {
         Session.Party = [
-            new Session.Seat("archeologue", Session.HostPeer),
-            new Session.Seat("aventuriere", Session.HostPeer),
+            new Session.Seat("guerisseuse", Session.HostPeer),
+            new Session.Seat("pretre", Session.HostPeer),
             new Session.Seat("guide", Session.HostPeer),
         ];
         Session.IsOnline = false;

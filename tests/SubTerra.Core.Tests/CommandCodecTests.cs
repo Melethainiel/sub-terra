@@ -16,6 +16,8 @@ public class CommandCodecTests
         new Reveal(Direction.West),
         new Explore(Direction.East),
         new Heal(new ExplorerId(3)),
+        new UseAbility("guerir", new ExplorerId(1)),
+        new UseAbility("se-preparer"),
         new PickUpItem(ItemKind.Artefact),
         new DropItem(),
         new Attack(),

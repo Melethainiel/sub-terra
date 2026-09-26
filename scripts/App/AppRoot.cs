@@ -273,6 +273,32 @@ public partial class AppRoot : Node3D
         Key.R => "reveal",
         Key.C => "dig",
         Key.U => "run",
+        Key.Key1 => "ability1",
+        Key.Key2 => "ability2",
+        _ => null,
+    };
+
+    /// <summary>The abilities the engine already plays that aim at another Explorer.
+    /// Any other ability's column stays greyed until its turn comes.</summary>
+    private static readonly HashSet<string> HealingAbilities = [AbilityIds.Guerir, AbilityIds.Ranimer];
+
+    /// <summary>The ability behind the column <c>ability1</c> or <c>ability2</c>, for
+    /// whoever's turn it is.</summary>
+    private Ability? AbilityIn(string action) => (action, _game.CurrentExplorer.Sheet) switch
+    {
+        ("ability1", { } sheet) => sheet.First,
+        ("ability2", { } sheet) => sheet.Second,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Who a heal card reaches: plain Soigner for <c>heal</c>, or the healing ability
+    /// in that column. <c>null</c> when the card is not a heal at all.
+    /// </summary>
+    private IEnumerable<ExplorerId>? HealTargetsFor(string action) => action switch
+    {
+        "heal" => _game.HealTargets(),
+        _ when AbilityIn(action) is { } ability && HealingAbilities.Contains(ability.Id) => _game.HealTargets(ability.Id),
         _ => null,
     };
 
@@ -282,7 +308,6 @@ public partial class AppRoot : Node3D
     {
         "endturn" => new EndTurn(),
         "attack" => new Attack(),
-        "heal" => new Heal(_game.CurrentExplorer.Id),
         "overexert" => new Overexert(),
         "drop" => new DropItem(),
         "pickup" when _game.ItemsOn(_game.CurrentExplorer.Cell) is [var item, ..] => new PickUpItem(item),
@@ -292,12 +317,21 @@ public partial class AppRoot : Node3D
 
     /// <summary>The cards that point somewhere on the board rather than firing on
     /// the spot: pressing one arms it, and it takes a click on a cell to play it.</summary>
-    private static readonly HashSet<string> TargetedActions = ["move", "explore", "reveal", "dig", "run"];
+    private static readonly HashSet<string> TargetedActions =
+        ["move", "explore", "reveal", "dig", "run", "heal", "ability1", "ability2"];
 
     /// <summary>Where a card, from either the HUD or the keyboard, ends up: armed if
     /// it points somewhere, played on the spot otherwise.</summary>
     private void HandleAction(string action)
     {
+        // Mending oneself is the usual case and has nowhere else to point: no need to
+        // arm the card and click one's own tile for it.
+        if (action == "heal" && _game.HealTargets().ToList() is [var only] && only == _game.CurrentExplorer.Id)
+        {
+            Apply(new Heal(only));
+            return;
+        }
+
         if (TargetedActions.Contains(action))
         {
             ToggleArm(action);
@@ -368,6 +402,7 @@ public partial class AppRoot : Node3D
         "explore" or "reveal" => _game.ActionPoints >= 1 && _game.Exits().Any(),
         "dig" => _game.ActionPoints >= 2 && _game.DigTargets().Any(),
         "run" => _game.ActionPoints >= 2 && _game.Steps().Any(),
+        "heal" or "ability1" or "ability2" => HealTargetsFor(action)?.Any() ?? false,
         _ => true,
     };
 
@@ -457,7 +492,36 @@ public partial class AppRoot : Node3D
             case "run":
                 ContinueRun(cell);
                 break;
+
+            case "heal" or "ability1" or "ability2":
+                HealOn(_armed, cell);
+                Disarm();
+                break;
         }
+    }
+
+    /// <summary>
+    /// Plays the armed heal on whoever stands on <paramref name="cell"/> and can be
+    /// reached — the most hurt of them if the tile is crowded, since that is who a
+    /// player pointing at it almost always means.
+    /// </summary>
+    private void HealOn(string action, Cell cell)
+    {
+        var reachable = HealTargetsFor(action)?.ToHashSet() ?? [];
+        var patient = _game.Explorers
+            .Where(explorer => explorer.Cell == cell && reachable.Contains(explorer.Id))
+            .OrderBy(explorer => explorer.Health)
+            .FirstOrDefault();
+
+        if (patient is null)
+        {
+            Say("Personne à soigner sur cette case.");
+            return;
+        }
+
+        Apply(action == "heal"
+            ? new Heal(patient.Id)
+            : new UseAbility(AbilityIn(action)!.Id, patient.Id));
     }
 
     /// <summary>
@@ -1015,6 +1079,14 @@ public partial class AppRoot : Node3D
 
                 break;
 
+            case "heal" or "ability1" or "ability2":
+                foreach (var id in HealTargetsFor(_armed) ?? [])
+                {
+                    hints[_game.Explorers[id.Value].Cell] = HighlightView.Hint.Ally;
+                }
+
+                break;
+
             case "run" when _runSteps.Count == 0:
                 // Only the first step of a route is legality the engine can vouch for
                 // in advance; the second and third are trusted to the click, then
@@ -1054,6 +1126,10 @@ public partial class AppRoot : Node3D
     {
         TileRevealed revealed => $"{Say(revealed.Tile.Kind)} révélée",
         TrapSprung trap => $"{Say(trap.Trap)} déclenché !",
+        AbilityUsed used => ExplorerRoster.All
+            .SelectMany(sheet => new[] { sheet.First, sheet.Second })
+            .FirstOrDefault(ability => ability.Id == used.Ability)?.Name ?? used.Ability,
+        HealthRegained regained => $"+{regained.Amount} ♥",
         HealthLost lost => $"−{lost.Amount} ♥",
         ExplorerWentDown => "à terre !",
         GuardianAppeared => "un Gardien s'éveille",

@@ -15,6 +15,7 @@ public partial class SettingsScreen : Control
     /// they're not action-card presses — a view toggle and a cancel.</summary>
     private static readonly (string Key, string Label)[] ExtraKeys =
     [
+        ("1 / 2", "Capacités de l'Explorateur dont c'est le tour"),
         ("V", "Basculer vue FPS ↔ vue du dessus"),
         ("Échap", "Annuler / revenir à la vue du dessus"),
     ];

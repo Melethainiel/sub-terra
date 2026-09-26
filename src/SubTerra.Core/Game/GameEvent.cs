@@ -61,6 +61,9 @@ public sealed record DieRolled(int Face) : GameEvent;
 
 public sealed record TrapSprung(Cell Cell, TileKind Trap) : GameEvent;
 
+/// <summary>An Explorer played one of their own abilities; its effects follow.</summary>
+public sealed record AbilityUsed(ExplorerId Explorer, string Ability) : GameEvent;
+
 public sealed record HealthRegained(ExplorerId Explorer, int Amount, int Total) : GameEvent;
 
 public sealed record ExplorerStoodUp(ExplorerId Explorer) : GameEvent;

@@ -20,6 +20,8 @@ public static class CommandCodec
         Reveal reveal => $"reveal:{reveal.Direction}",
         Explore explore => $"explore:{explore.Direction}",
         Heal heal => $"heal:{heal.Target.Value}",
+        UseAbility { Target: { } target } use => $"ability:{use.Ability}:{target.Value}",
+        UseAbility use => $"ability:{use.Ability}",
         PickUpItem pickUp => $"pickup:{pickUp.Item}",
         DropItem => "drop",
         Attack => "attack",
@@ -50,6 +52,9 @@ public static class CommandCodec
             ["reveal", var direction] when Way(direction) is { } way => new Reveal(way),
             ["explore", var direction] when Way(direction) is { } way => new Explore(way),
             ["heal", var target] when Number(target) is { } value => new Heal(new ExplorerId(value)),
+            ["ability", var ability] when IsName(ability) => new UseAbility(ability),
+            ["ability", var ability, var target] when IsName(ability) && Number(target) is { } value =>
+                new UseAbility(ability, new ExplorerId(value)),
             ["pickup", var item] when Enum.TryParse<ItemKind>(item, out var kind) => new PickUpItem(kind),
             ["drop"] => new DropItem(),
             ["attack"] => new Attack(),
@@ -89,6 +94,11 @@ public static class CommandCodec
             ? new Cell(x, y)
             : null;
     }
+
+    /// <summary>Ability names are lower-case words and dashes, never anything the
+    /// line format itself would choke on.</summary>
+    private static bool IsName(string text) =>
+        text.Length > 0 && text.All(c => c is (>= 'a' and <= 'z') or '-');
 
     private static int? Number(string text) =>
         int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var value)

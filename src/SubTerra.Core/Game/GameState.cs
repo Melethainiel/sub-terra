@@ -277,6 +277,18 @@ public sealed class GameState
     public IEnumerable<Cell> VisibleFrom(Cell origin, int range) =>
         Board.VisibleFrom(origin, range, _rubble.Contains);
 
+    /// <summary>
+    /// Who the current explorer could heal: with plain Soigner when
+    /// <paramref name="ability"/> is <c>null</c>, or with Guérir or Ranimer. A hint for
+    /// the interface, like <see cref="Steps"/>; the command is checked again anyway.
+    /// </summary>
+    public IEnumerable<ExplorerId> HealTargets(string? ability = null) =>
+        _explorers
+            .Where(target => (ability is null
+                ? HealRejection(target)
+                : AbilityRejection(ability) ?? RemoteHealRejection(ability, target)) is null)
+            .Select(target => target.Id);
+
     /// <summary>The rubble within reach of the current explorer: their tile, or a neighbour.</summary>
     public IEnumerable<Cell> DigTargets() =>
         Board.ConnectedNeighbours(CurrentExplorer.Cell)
@@ -409,6 +421,7 @@ public sealed class GameState
         Reveal reveal => ExecuteReveal(reveal),
         Explore explore => ExecuteExplore(explore),
         Heal heal => ExecuteHeal(heal),
+        UseAbility use => ExecuteAbility(use),
         PickUpItem pickUp => ExecutePickUp(pickUp),
         DropItem => ExecuteDrop(),
         Attack => ExecuteAttack(),
@@ -773,35 +786,46 @@ public sealed class GameState
 
     private Script ExecuteHeal(Heal heal)
     {
-        if (RequireActive() is { } down)
-        {
-            return Script.Refuse(down);
-        }
-
-        if (ActionPoints < 1)
-        {
-            return Script.Refuse("Plus de point d'action.");
-        }
-
         if (_explorers.FirstOrDefault(e => e.Id == heal.Target) is not { } target)
         {
             return Script.Refuse($"Aucun Explorateur {heal.Target}.");
         }
 
-        if (target.Cell != CurrentExplorer.Cell)
+        if (HealRejection(target) is { } rejection)
         {
-            return Script.Refuse("On ne soigne que sur sa propre tuile.");
+            return Script.Refuse(rejection);
         }
 
-        if (target.Health == target.MaxHealth)
-        {
-            return Script.Refuse($"{target.Name} est déjà au maximum.");
-        }
-
-        var wasDown = target.IsDown;
-        var gained = target.Heal(1);
         ActionPoints--;
+        return Script.Of(Mend(target, 1));
+    }
 
+    /// <summary>Why plain Soigner could not reach this explorer, or <c>null</c> if it can.</summary>
+    private string? HealRejection(Explorer target)
+    {
+        if (RequireActive() is { } down)
+        {
+            return down;
+        }
+
+        if (ActionPoints < 1)
+        {
+            return "Plus de point d'action.";
+        }
+
+        if (!target.IsPlaying || target.Cell != CurrentExplorer.Cell)
+        {
+            return "On ne soigne que sur sa propre tuile.";
+        }
+
+        return target.Health == target.MaxHealth ? $"{target.Name} est déjà au maximum." : null;
+    }
+
+    /// <summary>Gives hearts back, and gets them up off the floor if they were down.</summary>
+    private static List<GameEvent> Mend(Explorer target, int amount)
+    {
+        var wasDown = target.IsDown;
+        var gained = target.Heal(amount);
         var events = new List<GameEvent> { new HealthRegained(target.Id, gained, target.Health) };
 
         if (wasDown)
@@ -809,6 +833,105 @@ public sealed class GameState
             events.Add(new ExplorerStoodUp(target.Id));
         }
 
+        return events;
+    }
+
+    /// <summary>What each ability the engine plays costs in actions.</summary>
+    private static int? AbilityCost(string ability) => ability switch
+    {
+        AbilityIds.Guerir => 1,
+        AbilityIds.Ranimer => 3,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Whether the current explorer may play <paramref name="ability"/> at all, before
+    /// looking at what it aims at: it must be on their own sheet, and paid for.
+    /// </summary>
+    private string? AbilityRejection(string ability)
+    {
+        if (RequireActive() is { } down)
+        {
+            return down;
+        }
+
+        if (AbilityCost(ability) is not { } cost)
+        {
+            return $"Capacité inconnue ou pas encore jouée : {ability}.";
+        }
+
+        if (CurrentExplorer.Sheet is not { } sheet || (sheet.First.Id != ability && sheet.Second.Id != ability))
+        {
+            return $"{CurrentExplorer.Name} n'a pas cette capacité.";
+        }
+
+        return ActionPoints < cost ? $"Cette capacité coûte {cost} points d'action." : null;
+    }
+
+    private Script ExecuteAbility(UseAbility use)
+    {
+        if (AbilityRejection(use.Ability) is { } rejection)
+        {
+            return Script.Refuse(rejection);
+        }
+
+        return use.Ability switch
+        {
+            AbilityIds.Guerir or AbilityIds.Ranimer => ExecuteRemoteHeal(use),
+            _ => Script.Refuse($"Capacité pas encore jouée : {use.Ability}."),
+        };
+    }
+
+    /// <summary>
+    /// Guérir and Ranimer: another Explorer, in sight — within two tiles for Guérir,
+    /// at any distance for Ranimer, whose card names none.
+    /// </summary>
+    private string? RemoteHealRejection(string ability, Explorer target)
+    {
+        if (target.Id == CurrentExplorer.Id)
+        {
+            return "Cette capacité soigne un autre Explorateur.";
+        }
+
+        if (!target.IsPlaying)
+        {
+            return $"{target.Name} n'est plus dans le Temple.";
+        }
+
+        var range = ability == AbilityIds.Guerir ? 2 : int.MaxValue;
+
+        if (!VisibleFrom(CurrentExplorer.Cell, range).Contains(target.Cell))
+        {
+            return ability == AbilityIds.Guerir
+                ? $"{target.Name} doit être visible, à deux tuiles ou moins."
+                : $"{target.Name} doit être visible.";
+        }
+
+        return target.Health == target.MaxHealth ? $"{target.Name} est déjà au maximum." : null;
+    }
+
+    private Script ExecuteRemoteHeal(UseAbility use)
+    {
+        if (use.Target is not { } id || _explorers.FirstOrDefault(e => e.Id == id) is not { } target)
+        {
+            return Script.Refuse("Cette capacité vise un Explorateur.");
+        }
+
+        if (RemoteHealRejection(use.Ability, target) is { } rejection)
+        {
+            return Script.Refuse(rejection);
+        }
+
+        var amount = use.Ability switch
+        {
+            AbilityIds.Guerir => 2,
+            _ => target.IsDown ? 1 : 3,
+        };
+
+        ActionPoints -= AbilityCost(use.Ability)!.Value;
+
+        var events = new List<GameEvent> { new AbilityUsed(CurrentExplorer.Id, use.Ability) };
+        events.AddRange(Mend(target, amount));
         return Script.Of(events);
     }
 

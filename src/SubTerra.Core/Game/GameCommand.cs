@@ -35,6 +35,14 @@ public sealed record Run(IReadOnlyList<Direction> Steps) : GameCommand;
 /// <summary>Give an explorer on your tile a heart back — yourself included. 1 action.</summary>
 public sealed record Heal(ExplorerId Target) : GameCommand;
 
+/// <summary>
+/// Play one of the current explorer's own abilities, by its
+/// <see cref="Explorers.AbilityIds">stable name</see>. What it costs and what it may
+/// aim at belong to the ability; <paramref name="Target"/> names an Explorer for
+/// those that aim at one.
+/// </summary>
+public sealed record UseAbility(string Ability, ExplorerId? Target = null) : GameCommand;
+
 /// <summary>Take something off your tile. 1 action.</summary>
 public sealed record PickUpItem(ItemKind Item) : GameCommand;
 

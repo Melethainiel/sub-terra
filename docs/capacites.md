@@ -109,9 +109,9 @@ une carte de plus dans le HUD, sur le modèle de celles déjà en place.
 
 | Explorateur | Capacité | Type | Accroche |
 |---|---|---|---|
-| La Guérisseuse | *Guérir* — un autre Explorateur visible à 2 tuiles ou moins regagne 2 ♥ | 1 PA | Variante à distance de `Heal` (§3) : même famille de ciblage que Lunette de visée, portée 2 au lieu de 3. |
+| La Guérisseuse | *Guérir* — un autre Explorateur visible à 2 tuiles ou moins regagne 2 ♥ | 1 PA | Variante à distance de `Heal` (§3) : visible, portée 2. **Faite.** |
 | La Guérisseuse | *Survivante* — sur *Trébucher*, regagne 1 ♥ au lieu de l'effet habituel | passive | Crochet dans la résolution de la face *Trébucher* du dé de Péril. |
-| Le Prêtre | *Ranimer* — un autre Explorateur récupère 1 ♥ à terre, 3 ♥ sinon | 3 PA | Encore une variante de `Heal` à distance — sans limite de portée annoncée par la fiche, à confirmer contre le livret. |
+| Le Prêtre | *Ranimer* — un autre Explorateur récupère 1 ♥ à terre, 3 ♥ sinon | 3 PA | Variante de `Heal` à distance : un Explorateur visible, sans limite de portée. **Faite.** |
 | Le Prêtre | *Purifier* — élimine tous les ennemis d'une tuile autre que la sienne | 3 PA | Nouveau `GameCommand`, ciblage « n'importe quelle tuile » (§2), sans les hommes. |
 
 ## 5. Un ordre qui évite de refaire le travail
@@ -119,8 +119,14 @@ une carte de plus dans le HUD, sur le modèle de celles déjà en place.
 1. ~~**Ligne de vue** (§2)~~ — faite (`GameState.VisibleFrom`). Elle
    débloque Lunette de visée, Tir de précision, Guérir, et Ranimer si sa
    portée s'avère limitée.
-2. **Soigner à distance** (§3) avec Guérir et Ranimer, pendant que la ligne
-   de vue est encore fraîche.
+2. ~~**Soigner à distance** (§3) avec Guérir et Ranimer~~ — fait. Les
+   capacités passent par une commande unique, `UseAbility(capacité, cible)`,
+   dont le coût et la cible appartiennent à la capacité ; `AbilityIds` en
+   porte les noms stables. Ranimer vise un Explorateur visible, sans limite de
+   portée (tranché : la fiche n'en donne pas). Soigner vise enfin un autre
+   Explorateur de sa tuile. À l'écran, les deux capacités de l'Explorateur
+   dont c'est le tour sont les deux dernières colonnes de la carte Actions
+   (touches `1` et `2`) ; une capacité pas encore jouée y reste grisée.
 3. **Les capacités passives** (Agile, Vigilance, Survivante, Aventurière) —
    chacune un seul crochet, aucun nouveau ciblage, le gain le plus rapide.
 4. **Les répétitions d'action commune** (Illuminer, Sprinter, Excaver) — même

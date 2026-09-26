@@ -24,6 +24,9 @@ public partial class HighlightView : Node3D
 
         /// <summary>An answer the game is waiting for.</summary>
         Choice,
+
+        /// <summary>Someone a heal would reach.</summary>
+        Ally,
     }
 
     /// <summary>Just above the floor slab, so the patch reads as light on the stone.</summary>
@@ -55,6 +58,7 @@ public partial class HighlightView : Node3D
             Hint.Unknown => Palette.Unknown,
             Hint.Rubble => Palette.Rubble,
             Hint.Choice => Palette.Choice,
+            Hint.Ally => Palette.Support,
             _ => Palette.Step,
         };
 

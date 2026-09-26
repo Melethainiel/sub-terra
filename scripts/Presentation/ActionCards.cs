@@ -30,7 +30,7 @@ public static class ActionCards
         new("dig", "Creuser", "▼", "2 PA", "C", true, Palette.Rubble),
         new("run", "Courir", "»", "2 PA", "U", true, Palette.Step),
         new("attack", "Attaquer", "×", "1 PA", "A", false, Palette.Combat),
-        new("heal", "Soigner", "♥", "1 PA", "H", false, Palette.Support),
+        new("heal", "Soigner", "♥", "1 PA", "H", true, Palette.Support),
         new("pickup", "Ramasser", "▲", "1 PA", "P", false, Palette.Support),
         new("drop", "Poser", "▽", "1 PA", "D", false, Palette.Support),
         new("overexert", "Se dépasser", "↑", "1 ♥", "O", false, Palette.Meta),

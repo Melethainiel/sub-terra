@@ -120,6 +120,10 @@ public partial class Hud : CanvasLayer
     private const string TargetLegend =
         "Clique la case visée   ·   Échap ou clic droit : annuler";
 
+    /// <summary>A heal, plain or at a distance, points at the one it mends.</summary>
+    private const string AllyLegend =
+        "Clique la case de l'Explorateur à soigner   ·   Échap ou clic droit : annuler";
+
     /// <summary>Creuser alone can target the explorer's own tile, not just a neighbour.</summary>
     private const string DigLegend =
         "Clique sa propre case ou une case voisine connectée pour la creuser   ·   Échap ou clic droit : annuler";
@@ -156,6 +160,16 @@ public partial class Hud : CanvasLayer
     /// <summary>Every action's column, by its name, so <see cref="Show"/> can redraw
     /// its state without rebuilding the card each time.</summary>
     private readonly Dictionary<string, Button> _actionCards = [];
+
+    /// <summary>The two ability columns at the end of the Actions card, keyed
+    /// <c>ability1</c> and <c>ability2</c>; they belong to whoever's turn it is, so
+    /// they are rebuilt whenever that changes.</summary>
+    private readonly Dictionary<string, Button> _abilityCards = [];
+
+    private HBoxContainer _abilityRow = null!;
+
+    /// <summary>Whose abilities the columns currently show.</summary>
+    private ExplorerId? _abilitiesOf;
 
     /// <summary>The options as written, so the one laid out on the board can be
     /// badged without the badge ending up in the next label.</summary>
@@ -506,6 +520,10 @@ public partial class Hud : CanvasLayer
             _actionCards[action] = column;
         }
 
+        _abilityRow = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _abilityRow.AddThemeConstantOverride("separation", 0);
+        row.AddChild(_abilityRow);
+
         stack.AddChild(row);
         stack.AddChild(BuildHintBar());
         _actions.AddChild(stack);
@@ -638,6 +656,19 @@ public partial class Hud : CanvasLayer
             }
         }
 
+        if (_abilitiesOf != game.CurrentExplorer.Id)
+        {
+            BuildAbilityColumns(game.CurrentExplorer);
+        }
+
+        foreach (var (action, card) in _abilityCards)
+        {
+            var disabled = frozen || !canArm(action);
+            card.Disabled = disabled;
+            card.Modulate = disabled ? new Color(1f, 1f, 1f, 0.4f) : Colors.White;
+            card.ButtonPressed = action == armed;
+        }
+
         _hintBar.Text = (game.IsOver, game.Pending, mine, armed) switch
         {
             (true, _, _, _) => "La partie est terminée.   ·   V : vue FPS ↔ vue du dessus",
@@ -645,9 +676,50 @@ public partial class Hud : CanvasLayer
             (_, { Kind: DecisionKind.GuardianAwakening }, true, _) => StirringLegend,
             (_, null, true, "dig") => DigLegend,
             (_, null, true, "run") => RunLegend,
+            (_, null, true, "heal" or "ability1" or "ability2") => AllyLegend,
             (_, null, true, not null) => TargetLegend,
             _ => _aiming ? FpsLegend : MouseLegend,
         };
+    }
+
+    /// <summary>
+    /// The current explorer's two abilities, as the last columns of the Actions card,
+    /// keyed <c>1</c> and <c>2</c> and tinted with their domain. A passive one is
+    /// printed too — it is worth knowing it is there — but never lights up.
+    /// </summary>
+    private void BuildAbilityColumns(Explorer explorer)
+    {
+        foreach (var child in _abilityRow.GetChildren())
+        {
+            child.QueueFree();
+        }
+
+        _abilityCards.Clear();
+        _abilitiesOf = explorer.Id;
+
+        if (explorer.Sheet is not { } sheet)
+        {
+            return;
+        }
+
+        foreach (var (index, ability) in new[] { sheet.First, sheet.Second }.Select((ability, index) => (index, ability)))
+        {
+            var action = $"ability{index + 1}";
+            var column = BuildColumn(
+                ability.Name,
+                ability.IsPassive ? "◌" : "✦",
+                ability.Cost,
+                (index + 1).ToString(),
+                Palette.For(sheet.Domain),
+                targeted: !ability.IsPassive,
+                shaded: (Cards.Count + index) % 2 == 0);
+            column.TooltipText = ability.Text;
+            column.Pressed += () => EmitSignal(SignalName.ActionRequested, action);
+
+            _abilityRow.AddChild(Divider());
+            _abilityRow.AddChild(column);
+            _abilityCards[action] = column;
+        }
     }
 
     /// <summary>The last thing that happened, or the reason nothing did.</summary>
