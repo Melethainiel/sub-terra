@@ -20,8 +20,13 @@ public static class CommandCodec
         Reveal reveal => $"reveal:{reveal.Direction}",
         Explore explore => $"explore:{explore.Direction}",
         Heal heal => $"heal:{heal.Target.Value}",
-        UseAbility { Target: { } target } use => $"ability:{use.Ability}:{target.Value}",
-        UseAbility use => $"ability:{use.Ability}",
+        UseAbility use => string.Join(':', new[]
+        {
+            "ability",
+            use.Ability,
+            use.Target is { } target ? $"e{target.Value}" : null,
+            use.Direction is { } direction ? $"d{direction}" : null,
+        }.OfType<string>()),
         PickUpItem pickUp => $"pickup:{pickUp.Item}",
         DropItem => "drop",
         Attack => "attack",
@@ -52,9 +57,7 @@ public static class CommandCodec
             ["reveal", var direction] when Way(direction) is { } way => new Reveal(way),
             ["explore", var direction] when Way(direction) is { } way => new Explore(way),
             ["heal", var target] when Number(target) is { } value => new Heal(new ExplorerId(value)),
-            ["ability", var ability] when IsName(ability) => new UseAbility(ability),
-            ["ability", var ability, var target] when IsName(ability) && Number(target) is { } value =>
-                new UseAbility(ability, new ExplorerId(value)),
+            ["ability", var ability, .. var aims] when IsName(ability) => Ability(ability, aims),
             ["pickup", var item] when Enum.TryParse<ItemKind>(item, out var kind) => new PickUpItem(kind),
             ["drop"] => new DropItem(),
             ["attack"] => new Attack(),
@@ -93,6 +96,33 @@ public static class CommandCodec
         return parts is [var column, var row] && Number(column) is { } x && Number(row) is { } y
             ? new Cell(x, y)
             : null;
+    }
+
+    /// <summary>
+    /// What an ability aims at, each tagged: <c>e3</c> an Explorer, <c>dSouth</c> a
+    /// direction. Anything untagged, repeated or unreadable spoils the whole line.
+    /// </summary>
+    private static UseAbility? Ability(string ability, string[] aims)
+    {
+        ExplorerId? target = null;
+        Direction? direction = null;
+
+        foreach (var aim in aims)
+        {
+            switch (aim)
+            {
+                case ['e', .. var id] when target is null && Number(id) is { } value:
+                    target = new ExplorerId(value);
+                    break;
+                case ['d', .. var way] when direction is null && Way(way) is { } parsed:
+                    direction = parsed;
+                    break;
+                default:
+                    return null;
+            }
+        }
+
+        return new UseAbility(ability, target, direction);
     }
 
     /// <summary>Ability names are lower-case words and dashes, never anything the

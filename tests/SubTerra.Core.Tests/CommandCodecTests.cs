@@ -18,6 +18,7 @@ public class CommandCodecTests
         new Heal(new ExplorerId(3)),
         new UseAbility("guerir", new ExplorerId(1)),
         new UseAbility("se-preparer"),
+        new UseAbility("ordonner", new ExplorerId(2), Direction.South),
         new PickUpItem(ItemKind.Artefact),
         new DropItem(),
         new Attack(),
@@ -55,6 +56,11 @@ public class CommandCodecTests
     [InlineData("run:")]
     [InlineData("dig:3")]
     [InlineData("dig:trois,4")]
+    [InlineData("ability")]
+    [InlineData("ability:Guérir:e1")]
+    [InlineData("ability:guerir:1")]
+    [InlineData("ability:guerir:e1:e2")]
+    [InlineData("ability:ordonner:e1:dUpwards")]
     [InlineData("heal:moi")]
     [InlineData("pickup:Sandwich")]
     [InlineData("reveal:North:gauche")]

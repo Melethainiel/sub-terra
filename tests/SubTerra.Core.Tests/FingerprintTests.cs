@@ -48,6 +48,6 @@ public class FingerprintTests
         // Written down on purpose: HashCode draws a fresh seed per process, and a
         // fingerprint that did the same would agree with nobody. If the state grows a
         // field this number moves — check the change is deliberate, then update it.
-        Assert.Equal(-7181684646216004230L, Game().Fingerprint);
+        Assert.Equal(3382709054411342054L, Game().Fingerprint);
     }
 }

@@ -87,6 +87,17 @@ public sealed class TempleBoard
         }
     }
 
+    /// <summary>Lays a Consolidation marker: the tile plays as a Normal one from now on.</summary>
+    public void Consolidate(Cell cell)
+    {
+        if (TileAt(cell) is not { } tile)
+        {
+            throw new InvalidOperationException($"No tile to consolidate on {cell}.");
+        }
+
+        _tiles[cell] = tile with { Consolidated = true };
+    }
+
     /// <summary>Knocks down the wall between two adjacent cells (Sapper's Demolition).</summary>
     public void Demolish(Cell a, Cell b) => _demolished.Add(new CellEdge(a, b));
 

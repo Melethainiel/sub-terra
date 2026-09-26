@@ -1,4 +1,5 @@
 using Godot;
+using SubTerra.Core.Explorers;
 using SubTerra.Core.Game;
 
 namespace SubTerra.Presentation;
@@ -119,6 +120,18 @@ public partial class Hud : CanvasLayer
     /// <summary>Any targeted card once it is armed and waiting on a cell.</summary>
     private const string TargetLegend =
         "Clique la case visée   ·   Échap ou clic droit : annuler";
+
+    /// <summary>Ordonner points twice: at who moves, then at where.</summary>
+    private const string OrderLegend =
+        "Clique l'Explorateur à qui donner l'ordre, puis la case où l'envoyer   ·   Échap ou clic droit : annuler";
+
+    /// <summary>The ability behind an armed ability column, for whoever's turn it is.</summary>
+    private static string? ArmedAbility(GameState game, string armed) => (armed, game.CurrentExplorer.Sheet) switch
+    {
+        ("ability1", { } sheet) => sheet.First.Id,
+        ("ability2", { } sheet) => sheet.Second.Id,
+        _ => null,
+    };
 
     /// <summary>A heal, plain or at a distance, points at the one it mends.</summary>
     private const string AllyLegend =
@@ -676,6 +689,7 @@ public partial class Hud : CanvasLayer
             (_, { Kind: DecisionKind.GuardianAwakening }, true, _) => StirringLegend,
             (_, null, true, "dig") => DigLegend,
             (_, null, true, "run") => RunLegend,
+            (_, null, true, "ability1" or "ability2") when ArmedAbility(game, armed!) == AbilityIds.Ordonner => OrderLegend,
             (_, null, true, "heal" or "ability1" or "ability2") => AllyLegend,
             (_, null, true, not null) => TargetLegend,
             _ => _aiming ? FpsLegend : MouseLegend,

@@ -278,6 +278,9 @@ public partial class AppRoot : Node3D
         _ => null,
     };
 
+    /// <summary>Ordonner in hand: who has been picked to move, before where to.</summary>
+    private ExplorerId? _orderee;
+
     /// <summary>The last grant <see cref="Refresh"/> saw, so it arms the granted card
     /// once per change rather than on every redraw.</summary>
     private GrantedActions? _lastGranted;
@@ -349,7 +352,7 @@ public partial class AppRoot : Node3D
 
         // An ability that aims at nobody is played on the spot; whatever it buys then
         // comes into hand on its own (see Refresh).
-        if (AbilityIn(action) is { } ability && !HealingAbilities.Contains(ability.Id))
+        if (AbilityIn(action) is { } ability && !HealingAbilities.Contains(ability.Id) && ability.Id != AbilityIds.Ordonner)
         {
             Apply(new UseAbility(ability.Id));
             return;
@@ -411,6 +414,7 @@ public partial class AppRoot : Node3D
     private void Disarm()
     {
         _armed = null;
+        _orderee = null;
         _runSteps.Clear();
         Refresh();
     }
@@ -428,9 +432,12 @@ public partial class AppRoot : Node3D
         "run" => _game.ActionPoints >= 2 && _game.Steps().Any(),
         "heal" => HealTargetsFor(action)?.Any() ?? false,
         "ability1" or "ability2" => AbilityIn(action) is { } ability
-            && (HealingAbilities.Contains(ability.Id)
-                ? _game.HealTargets(ability.Id).Any()
-                : _game.AbilityUnavailable(ability.Id) is null),
+            && (ability.Id switch
+            {
+                AbilityIds.Ordonner => _game.OrderTargets().Any(),
+                _ when HealingAbilities.Contains(ability.Id) => _game.HealTargets(ability.Id).Any(),
+                _ => _game.AbilityUnavailable(ability.Id) is null,
+            }),
         _ => true,
     };
 
@@ -530,11 +537,50 @@ public partial class AppRoot : Node3D
                 ContinueRun(cell);
                 break;
 
+            case "ability1" or "ability2" when AbilityIn(_armed)?.Id == AbilityIds.Ordonner:
+                Order(cell);
+                break;
+
             case "heal" or "ability1" or "ability2":
                 var armed = _armed;
                 Disarm();
                 HealOn(armed, cell);
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Ordonner takes two clicks: first the Explorer who is told to move, then the
+    /// tile they are sent to.
+    /// </summary>
+    private void Order(Cell cell)
+    {
+        if (_orderee is not { } orderee)
+        {
+            var targets = _game.OrderTargets().ToHashSet();
+
+            if (_game.Explorers.FirstOrDefault(e => e.Cell == cell && targets.Contains(e.Id)) is not { } picked)
+            {
+                Say("Personne ici à qui donner un ordre.");
+                return;
+            }
+
+            _orderee = picked.Id;
+            Say($"Où envoyer {picked.Name} ?");
+            Refresh();
+            return;
+        }
+
+        var from = _game.Explorers[orderee.Value].Cell;
+        Disarm();
+
+        if (from.DirectionTo(cell) is { } direction && _game.StepsOf(orderee).Contains(direction))
+        {
+            Apply(new UseAbility(AbilityIds.Ordonner, orderee, direction));
+        }
+        else
+        {
+            Say($"{cell} n'est pas un pas possible depuis {from}.");
         }
     }
 
@@ -940,6 +986,7 @@ public partial class AppRoot : Node3D
         if (_armed is not null && (_game.Pending is not null || !Session.Owns(Due) || !CanArm(_armed)))
         {
             _armed = null;
+            _orderee = null;
             _runSteps.Clear();
         }
 
@@ -1131,6 +1178,26 @@ public partial class AppRoot : Node3D
 
                 break;
 
+            case "ability1" or "ability2" when AbilityIn(_armed)?.Id == AbilityIds.Ordonner:
+                if (_orderee is { } orderee)
+                {
+                    var at = _game.Explorers[orderee.Value].Cell;
+
+                    foreach (var direction in _game.StepsOf(orderee))
+                    {
+                        hints[at.Neighbour(direction)] = HighlightView.Hint.Step;
+                    }
+                }
+                else
+                {
+                    foreach (var id in _game.OrderTargets())
+                    {
+                        hints[_game.Explorers[id.Value].Cell] = HighlightView.Hint.Ally;
+                    }
+                }
+
+                break;
+
             case "heal" or "ability1" or "ability2":
                 foreach (var id in HealTargetsFor(_armed) ?? [])
                 {
@@ -1182,6 +1249,10 @@ public partial class AppRoot : Node3D
             .SelectMany(sheet => new[] { sheet.First, sheet.Second })
             .FirstOrDefault(ability => ability.Id == used.Ability)?.Name ?? used.Ability,
         HealthRegained regained => $"+{regained.Amount} ♥",
+        GuardianEliminated => "un Gardien tombe",
+        ShieldRaised => "Bouclier levé",
+        ShieldLowered => "Bouclier baissé",
+        TileConsolidated => "tuile consolidée",
         HealthLost lost => $"−{lost.Amount} ♥",
         ExplorerWentDown => "à terre !",
         GuardianAppeared => "un Gardien s'éveille",

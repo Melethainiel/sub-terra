@@ -64,6 +64,15 @@ public sealed record TrapSprung(Cell Cell, TileKind Trap) : GameEvent;
 /// <summary>An Explorer played one of their own abilities; its effects follow.</summary>
 public sealed record AbilityUsed(ExplorerId Explorer, string Ability) : GameEvent;
 
+/// <summary>Se préparer: the Bouclier goes up until her next turn.</summary>
+public sealed record ShieldRaised(ExplorerId Explorer) : GameEvent;
+
+/// <summary>Her turn has come round again: the Bouclier comes down.</summary>
+public sealed record ShieldLowered(ExplorerId Explorer) : GameEvent;
+
+/// <summary>A Consolidation marker: that tile is a Normal one for the rest of the game.</summary>
+public sealed record TileConsolidated(Cell Cell) : GameEvent;
+
 public sealed record HealthRegained(ExplorerId Explorer, int Amount, int Total) : GameEvent;
 
 public sealed record ExplorerStoodUp(ExplorerId Explorer) : GameEvent;

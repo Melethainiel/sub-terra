@@ -40,6 +40,15 @@ public sealed class Explorer(ExplorerId id, string name, int maxHealth, Cell cel
     /// <summary>Out of the temple and safe. They cannot go back in.</summary>
     public bool HasEscaped { get; internal set; }
 
+    /// <summary>
+    /// Behind the Combattante's Bouclier (Se préparer): no heart is lost until her next
+    /// turn begins — bar the one she pays to overexert.
+    /// </summary>
+    public bool IsShielded { get; internal set; }
+
+    /// <summary>The turn after Se préparer, which cannot use it again.</summary>
+    public bool IsRecovering { get; internal set; }
+
     /// <summary>Caught by the lava. Unlike being down, there is no coming back.</summary>
     public bool IsDead { get; internal set; }
 

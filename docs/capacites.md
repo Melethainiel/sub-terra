@@ -142,8 +142,16 @@ une carte de plus dans le HUD, sur le modèle de celles déjà en place.
    leurs commandes ordinaires, sans payer de PA (`GameState.Granted`). Elles
    se jouent sur-le-champ : toute autre commande acceptée, ou la fin du tour,
    les fait perdre. À l'écran, la carte offerte s'arme d'elle-même.
-5. **Les nouveaux `GameCommand` avec ciblage déjà résolu par ailleurs**
-   (Anéantir, Se préparer, Consolider, Ordonner).
+5. ~~**Anéantir, Se préparer, Consolider, Ordonner**~~ — faites.
+   Anéantir retire un ennemi de sa tuile sans jet. Se préparer lève le
+   Bouclier (`Explorer.IsShielded`) : aucun ♥ perdu jusqu'au début de son
+   prochain tour, sauf ceux qu'elle paie (Se dépasser, relance), et ce tour-là
+   ne peut pas le relever (`IsRecovering`). Consolider pose un marqueur sur
+   `PlacedTile.Consolidated` : la tuile garde son dessin mais joue comme une
+   Normale ; quatre usages par partie (`GameState.UsesLeft`). Ordonner fait
+   faire un pas à un autre Explorateur debout ; `UseAbility` porte pour cela
+   une direction. Restent à dessiner : le Bouclier sur le meeple et le
+   marqueur de Consolidation sur la tuile.
 6. **Les ciblages à bâtir en dernier** — « tuile adjacente pas la sienne »
    (Grenade), « n'importe quelle tuile » (Rechercher, Purifier), « ce mur-ci »
    (Démolir) : chacun n'est utile qu'à une ou deux capacités, ce qui les rend

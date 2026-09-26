@@ -45,6 +45,9 @@ public sealed class GameState
     private readonly Dictionary<Cell, List<ItemKind>> _items = [];
     private readonly List<Cell> _guardians = [];
     private readonly HashSet<Cell> _rubble = [];
+
+    /// <summary>How many times each limited ability has been played, by whom.</summary>
+    private readonly Dictionary<(ExplorerId Explorer, string Ability), int> _uses = [];
     private readonly HashSet<Cell> _flooded = [];
 
     private int _current;
@@ -225,9 +228,25 @@ public sealed class GameState
             Mix(Pending is { } decision ? (long)decision.Kind + 1 : 0);
             Mix(Granted is { } granted ? ((long)granted.Action + 1) * 16 + granted.Remaining : 0);
 
+            foreach (var ((user, ability), count) in _uses.OrderBy(use => use.Key.Explorer.Value).ThenBy(use => use.Key.Ability, StringComparer.Ordinal))
+            {
+                Mix(user.Value);
+
+                foreach (var letter in ability)
+                {
+                    Mix(letter);
+                }
+
+                Mix(count);
+            }
+
+            Mix(Board.Tiles.Count(tile => tile.Value.Consolidated));
+
             foreach (var explorer in _explorers)
             {
                 Mix(explorer.Health);
+                Mix(explorer.IsShielded ? 1 : 0);
+                Mix(explorer.IsRecovering ? 1 : 0);
                 Mix(explorer.Cell.Column);
                 Mix(explorer.Cell.Row);
                 Mix(explorer.Carried is { } item ? (long)item + 1 : 0);
@@ -567,7 +586,12 @@ public sealed class GameState
         if (target == TempleSetup.EntranceExit)
         {
             explorer.HasEscaped = true;
-            ActionPoints = 0;
+
+            if (explorer == CurrentExplorer)
+            {
+                ActionPoints = 0;
+            }
+
             yield return new ExplorerEscaped(explorer.Id, explorer.Carried == ItemKind.Artefact);
             yield break;
         }
@@ -905,7 +929,7 @@ public sealed class GameState
 
             yield return new AbilityUsed(adventurer.Id, AbilityIds.Aventuriere);
 
-            foreach (var wound in Wound(adventurer, 1))
+            foreach (var wound in Wound(adventurer, 1, paid: true))
             {
                 yield return wound;
             }
@@ -959,6 +983,16 @@ public sealed class GameState
             return rejection;
         }
 
+        if (OnTheSpotRejection(ability) is { } nothing)
+        {
+            return nothing;
+        }
+
+        if (ability is AbilityIds.Consolider or AbilityIds.Aneantir or AbilityIds.SePreparer)
+        {
+            return null;
+        }
+
         // Paying for actions there is nothing to spend on would only waste a point.
         return GrantOf(ability)?.Action switch
         {
@@ -984,12 +1018,133 @@ public sealed class GameState
         return Script.Of(new AbilityUsed(CurrentExplorer.Id, ability));
     }
 
+    /// <summary>How many uses each limited ability allows in a game.</summary>
+    private static int? UseLimit(string ability) => ability switch
+    {
+        AbilityIds.Consolider => 4,
+        _ => null,
+    };
+
+    /// <summary>
+    /// How many more times <paramref name="explorer"/> may play a limited ability this
+    /// game, or <c>null</c> when it has no limit.
+    /// </summary>
+    public int? UsesLeft(ExplorerId explorer, string ability) =>
+        UseLimit(ability) is { } limit ? limit - _uses.GetValueOrDefault((explorer, ability)) : null;
+
+    private void CountUse(string ability)
+    {
+        if (UseLimit(ability) is not null)
+        {
+            var key = (CurrentExplorer.Id, ability);
+            _uses[key] = _uses.GetValueOrDefault(key) + 1;
+        }
+    }
+
+    /// <summary>Why Consolider, Anéantir or Se préparer would do nothing where she stands.</summary>
+    private string? OnTheSpotRejection(string ability)
+    {
+        var explorer = CurrentExplorer;
+
+        return ability switch
+        {
+            AbilityIds.Aneantir when !_guardians.Contains(explorer.Cell) => "Aucun ennemi sur sa tuile.",
+            AbilityIds.SePreparer when explorer.IsShielded => "Le Bouclier est déjà levé.",
+            AbilityIds.SePreparer when explorer.IsRecovering => "Se préparer est indisponible ce tour-ci.",
+            AbilityIds.Consolider when Board.TileAt(explorer.Cell) is not { } tile
+                || tile.Kind is TileKind.Normal or TileKind.Journal or TileKind.Entrance or TileKind.Sanctuary =>
+                "Rien à consolider sur cette tuile.",
+            _ => null,
+        };
+    }
+
+    private Script ExecuteOnTheSpot(string ability)
+    {
+        if (OnTheSpotRejection(ability) is { } rejection)
+        {
+            return Script.Refuse(rejection);
+        }
+
+        var explorer = CurrentExplorer;
+        ActionPoints -= AbilityCost(ability)!.Value;
+        CountUse(ability);
+
+        var events = new List<GameEvent> { new AbilityUsed(explorer.Id, ability) };
+
+        switch (ability)
+        {
+            case AbilityIds.Aneantir:
+                _guardians.Remove(explorer.Cell);
+                events.Add(new GuardianEliminated(explorer.Cell));
+                break;
+
+            case AbilityIds.SePreparer:
+                explorer.IsShielded = true;
+                events.Add(new ShieldRaised(explorer.Id));
+                break;
+
+            case AbilityIds.Consolider:
+                Board.Consolidate(explorer.Cell);
+                events.Add(new TileConsolidated(explorer.Cell));
+                break;
+        }
+
+        return Script.Of(events);
+    }
+
+    /// <summary>Who the Aristocrate could order to move: anyone else standing, still in the Temple.</summary>
+    public IEnumerable<ExplorerId> OrderTargets() =>
+        AbilityRejection(AbilityIds.Ordonner) is null
+            ? _explorers.Where(other => other != CurrentExplorer && other.IsPlaying && !other.IsDown && StepsOf(other).Any())
+                .Select(other => other.Id)
+            : [];
+
+    /// <summary>Where an explorer other than the current one could step, if told to.</summary>
+    public IEnumerable<Direction> StepsOf(ExplorerId explorer) => StepsOf(_explorers[explorer.Value]);
+
+    private IEnumerable<Direction> StepsOf(Explorer explorer) =>
+        DirectionExtensions.All.Where(direction => StepRejection(explorer, explorer.Cell, direction) is null);
+
+    /// <summary>Ordonner: another standing Explorer takes a Se déplacer there and then.</summary>
+    private Script ExecuteOrder(UseAbility use)
+    {
+        if (use.Target is not { } id || _explorers.FirstOrDefault(e => e.Id == id) is not { } ordered)
+        {
+            return Script.Refuse("Ordonner vise un Explorateur.");
+        }
+
+        if (use.Direction is not { } direction)
+        {
+            return Script.Refuse("Ordonner dit où aller.");
+        }
+
+        if (ordered == CurrentExplorer)
+        {
+            return Script.Refuse("On n'ordonne qu'aux autres.");
+        }
+
+        if (!ordered.IsPlaying || ordered.IsDown)
+        {
+            return Script.Refuse($"{ordered.Name} ne peut pas se déplacer.");
+        }
+
+        if (StepRejection(ordered, ordered.Cell, direction) is { } rejection)
+        {
+            return Script.Refuse(rejection);
+        }
+
+        ActionPoints -= AbilityCost(AbilityIds.Ordonner)!.Value;
+
+        return Script.Of(Step(ordered, direction).Prepend(new AbilityUsed(CurrentExplorer.Id, AbilityIds.Ordonner)));
+    }
+
     /// <summary>What each ability the engine plays costs in actions.</summary>
     private static int? AbilityCost(string ability) => ability switch
     {
         AbilityIds.Guerir => 1,
         AbilityIds.Ranimer => 3,
         AbilityIds.Illuminer or AbilityIds.Sprinter or AbilityIds.Excaver => 1,
+        AbilityIds.Ordonner or AbilityIds.Consolider or AbilityIds.Aneantir or AbilityIds.SePreparer => 1,
         _ => null,
     };
 
@@ -1014,6 +1169,11 @@ public sealed class GameState
             return $"{CurrentExplorer.Name} n'a pas cette capacité.";
         }
 
+        if (UsesLeft(CurrentExplorer.Id, ability) == 0)
+        {
+            return "Cette capacité est épuisée pour la partie.";
+        }
+
         return ActionPoints < cost ? $"Cette capacité coûte {cost} points d'action." : null;
     }
 
@@ -1028,6 +1188,8 @@ public sealed class GameState
         {
             AbilityIds.Guerir or AbilityIds.Ranimer => ExecuteRemoteHeal(use),
             AbilityIds.Illuminer or AbilityIds.Sprinter or AbilityIds.Excaver => ExecuteGrant(use.Ability),
+            AbilityIds.Ordonner => ExecuteOrder(use),
+            AbilityIds.Consolider or AbilityIds.Aneantir or AbilityIds.SePreparer => ExecuteOnTheSpot(use.Ability),
             _ => Script.Refuse($"Capacité pas encore jouée : {use.Ability}."),
         };
     }
@@ -1511,7 +1673,7 @@ public sealed class GameState
         ActionPoints++;
 
         var events = new List<GameEvent>();
-        events.AddRange(Wound(explorer, 1));
+        events.AddRange(Wound(explorer, 1, paid: true));
 
         return Script.Of(events);
     }
@@ -1520,8 +1682,17 @@ public sealed class GameState
     /// Takes hearts off an explorer. Going down during one's own turn ends it on the
     /// spot, which is why this returns events rather than mutating quietly.
     /// </summary>
-    private IEnumerable<GameEvent> Wound(Explorer explorer, int amount)
+    /// <param name="paid">
+    /// A heart spent rather than taken — to overexert, to reroll — which the Bouclier
+    /// does not stop.
+    /// </param>
+    private IEnumerable<GameEvent> Wound(Explorer explorer, int amount, bool paid = false)
     {
+        if (explorer.IsShielded && !paid)
+        {
+            yield break;
+        }
+
         var lost = explorer.Wound(amount);
 
         if (lost > 0)
@@ -1942,6 +2113,17 @@ public sealed class GameState
 
         HasOverexerted = false;
         Granted = null;
+
+        // The Bouclier holds until her turn comes round, and that turn is spent
+        // without it.
+        var next = CurrentExplorer;
+        next.IsRecovering = next.IsShielded;
+
+        if (next.IsShielded)
+        {
+            next.IsShielded = false;
+            yield return new ShieldLowered(next.Id);
+        }
 
         // Those who got out, and those the mountain kept, have no actions to take.
         ActionPoints = CurrentExplorer switch
