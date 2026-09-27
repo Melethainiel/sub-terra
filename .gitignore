@@ -1,7 +1,9 @@
 # Godot 4+
 .godot/
 /android/
-export_presets.cfg
+# Exports land here; the presets themselves are versioned — they hold no secret
+# (no encryption key, no signing), and CI builds from them.
+/build/
 
 # .NET
 bin/

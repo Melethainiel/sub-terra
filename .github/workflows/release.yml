@@ -1,0 +1,72 @@
+# A tag v* builds the game for Linux and Windows and attaches both to a GitHub
+# Release — private, as the repository is. Nothing is signed: the Windows exe keeps
+# Godot's icon (setting ours needs rcedit, which only runs on Windows).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: 4.7.2
+  GODOT: Godot_v4.7.2-stable_mono_linux_x86_64
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Cache Godot and its export templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-mono
+
+      - name: Fetch Godot and the Linux and Windows templates
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          mkdir -p ~/godot && cd ~/godot
+          curl -fsSL -o godot.zip "$base/${GODOT}.zip" && unzip -q godot.zip && rm godot.zip
+          curl -fsSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_mono_export_templates.tpz"
+          dest=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable.mono
+          mkdir -p "$dest"
+          unzip -q -j templates.tpz templates/version.txt templates/icudt_godot.dat \
+            templates/linux_release.x86_64 templates/linux_debug.x86_64 \
+            'templates/windows_release_x86_64*.exe' 'templates/windows_debug_x86_64*.exe' -d "$dest"
+          rm templates.tpz
+
+      - name: Import the project
+        run: ~/godot/${GODOT}/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64 --headless --path . --import
+
+      - name: Export
+        run: |
+          godot=~/godot/${GODOT}/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64
+          mkdir -p build/linux build/windows
+          $godot --headless --path . --export-release "Linux" build/linux/SubTerra.x86_64
+          $godot --headless --path . --export-release "Windows" build/windows/SubTerra.exe
+          test -x build/linux/SubTerra.x86_64 && test -f build/windows/SubTerra.exe
+
+      - name: Package
+        run: |
+          (cd build/linux && zip -qr "../../SubTerra-${GITHUB_REF_NAME}-linux.zip" .)
+          (cd build/windows && zip -qr "../../SubTerra-${GITHUB_REF_NAME}-windows.zip" .)
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "SubTerra-${GITHUB_REF_NAME}-linux.zip" "SubTerra-${GITHUB_REF_NAME}-windows.zip" \
+            --title "Sub Terra II ${GITHUB_REF_NAME}" --generate-notes

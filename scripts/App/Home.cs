@@ -184,8 +184,10 @@ public partial class Home : Control
 
     private Control BuildFooter()
     {
-        var bar = new MarginContainer();
-        bar.SetAnchorsPreset(LayoutPreset.BottomWide);
+        // Anchored to the bottom edge and grown upwards from it: left to grow down, the
+        // bar — and the only Quitter button — sat just below the screen.
+        var bar = new MarginContainer { GrowVertical = GrowDirection.Begin };
+        bar.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomWide, LayoutPresetMode.Minsize);
         bar.AddThemeConstantOverride("margin_left", 40);
         bar.AddThemeConstantOverride("margin_right", 40);
         bar.AddThemeConstantOverride("margin_bottom", 26);
@@ -211,7 +213,7 @@ public partial class Home : Control
 
         var colophon = new Label
         {
-            Text = "Sub Terra II — Au bord de l'enfer · édition numérique",
+            Text = $"Sub Terra II — Au bord de l'enfer · édition numérique · v{ProjectSettings.GetSetting("application/config/version")}",
             VerticalAlignment = VerticalAlignment.Center,
         };
         colophon.AddThemeFontSizeOverride("font_size", 12);
