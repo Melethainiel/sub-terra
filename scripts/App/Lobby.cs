@@ -101,13 +101,54 @@ public partial class Lobby : Control
 
         Multiplayer.MultiplayerPeer = peer;
         _online = true;
-        Note($"En attente de joueurs sur le port {Session.Port}…");
+        Note($"En attente de joueurs sur le port {Session.Port} — ouverture du port sur la box…");
         Refresh();
+        OpenToTheWorld(peer);
+    }
+
+    /// <summary>
+    /// Has the router let friends from outside in, then says what address to give them.
+    /// The host is already open on the local network meanwhile.
+    /// </summary>
+    private async void OpenToTheWorld(ENetMultiplayerPeer peer)
+    {
+        if (Net.Instance is not { } net)
+        {
+            return;
+        }
+
+        var port = Session.Port;
+        var forwarding = await net.Forward(port);
+
+        // Gone back to the menu, or hosting afresh, while the router was answering.
+        if (!IsInstanceValid(this) || Multiplayer.MultiplayerPeer != peer)
+        {
+            return;
+        }
+
+        if (forwarding.Problem is { } problem)
+        {
+            Note($"En attente de joueurs sur le port {port}. Hors réseau local, ça risque de bloquer : {problem}.");
+            return;
+        }
+
+        if (forwarding.Address is { } address)
+        {
+            DisplayServer.ClipboardSet(address);
+            Note($"Port ouvert. Adresse à donner à tes amis : {address} (copiée).");
+        }
+        else
+        {
+            Note($"Port {port} ouvert sur la box. En attente de joueurs…");
+        }
     }
 
     private void Join()
     {
         Drop();
+
+        // A player joining has nothing to open to the world.
+        Net.Instance?.Unforward();
 
         var peer = new ENetMultiplayerPeer();
         var error = peer.CreateClient(_addressText.Trim(), Session.Port);

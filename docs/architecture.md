@@ -117,6 +117,10 @@ silence. Elle est calculée à la main en FNV-1a : `HashCode` tire une graine pa
 processus et ne serait jamais d'accord avec la machine d'à côté — la première
 version du réseau s'est fait prendre exactement là.
 
+L'hôte demande à sa box, en UPnP, d'ouvrir le port UDP (`Net.Forward`) et
+donne l'adresse publique à ses amis ; le port est rendu en quittant le jeu. Sans
+UPnP, ou derrière le NAT de l'opérateur, il reste à ouvrir le port à la main.
+
 Personne ne joue avant que tout le monde ait le Temple à l'écran : un client
 frappe à la porte (`AtTheTable`) jusqu'à ce que l'hôte ouvre (`Begin`), sinon une
 commande envoyée à un pair encore en chargement serait perdue — et une commande
