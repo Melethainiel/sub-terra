@@ -118,6 +118,27 @@ public partial class AppRoot : Node3D
     private readonly List<Direction> _runSteps = [];
 
     private ViewMode _viewMode = Settings.DefaultViewIsFps ? ViewMode.Fps : ViewMode.Overview;
+
+    /// <summary>
+    /// How close the view from above has come: 0 frames the whole temple, 1 stands over
+    /// the Explorer whose turn it is. Eased towards <see cref="_zoomTarget"/> each frame.
+    /// </summary>
+    private float _zoom;
+    private float _zoomTarget;
+
+    /// <summary>Where the zoomed view has been moved to, off the Explorer it follows.</summary>
+    private Vector3 _pan;
+
+    /// <summary>Whose turn the pan was set in: a new turn brings the view back to them.</summary>
+    private ExplorerId? _panFor;
+
+    private const float ZoomStep = 0.2f;
+
+    /// <summary>How far above the table the fully zoomed camera stands.</summary>
+    private const float CloseDistance = 7.5f;
+
+    /// <summary>One press of an arrow key moves the zoomed view this far.</summary>
+    private const float PanStep = 2f;
     private float _overviewFov;
 
     /// <summary>The look the mouse has built in FPS mode, and whose look it is — so a
@@ -270,6 +291,22 @@ public partial class AppRoot : Node3D
 
         if (_game.IsOver || !_begun)
         {
+            return;
+        }
+
+        // The view from above zooms: the wheel, unless it is turning what is being
+        // weighed up (below), and + / − whatever is going on.
+        if (_viewMode == ViewMode.Overview && Zooming(@event) is { } step)
+        {
+            _zoomTarget = Mathf.Clamp(_zoomTarget + step, 0f, 1f);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        if (_viewMode == ViewMode.Overview && Panning(@event) is { } shift)
+        {
+            _pan += shift;
+            GetViewport().SetInputAsHandled();
             return;
         }
 
@@ -1102,6 +1139,64 @@ public partial class AppRoot : Node3D
     /// waiting to be turned, a Guardian about to stir in one pocket or another — and
     /// this machine is the one being asked.
     /// </summary>
+    /// <summary>How much an input zooms the view from above in (+) or out (−), if it does.</summary>
+    private float? Zooming(InputEvent @event) => @event switch
+    {
+        InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelUp } when !Weighing => ZoomStep,
+        InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.WheelDown } when !Weighing => -ZoomStep,
+        InputEventKey { Pressed: true, Keycode: Key.Equal or Key.KpAdd or Key.Plus } => ZoomStep,
+        InputEventKey { Pressed: true, Keycode: Key.Minus or Key.KpSubtract } => -ZoomStep,
+        _ => null,
+    };
+
+    /// <summary>How far an input moves the zoomed view, if it does: the arrow keys, or a
+    /// drag with the middle button — scaled so the table follows the pointer.</summary>
+    private Vector3? Panning(InputEvent @event)
+    {
+        if (_zoom < 0.05f)
+        {
+            return null;
+        }
+
+        return @event switch
+        {
+            InputEventKey { Pressed: true, Keycode: Key.Left } => new Vector3(-PanStep, 0f, 0f),
+            InputEventKey { Pressed: true, Keycode: Key.Right } => new Vector3(PanStep, 0f, 0f),
+            InputEventKey { Pressed: true, Keycode: Key.Up } => new Vector3(0f, 0f, -PanStep),
+            InputEventKey { Pressed: true, Keycode: Key.Down } => new Vector3(0f, 0f, PanStep),
+            InputEventMouseMotion { ButtonMask: MouseButtonMask.Middle } drag =>
+                new Vector3(-drag.Relative.X, 0f, -drag.Relative.Y) * (_camera.GlobalPosition.Y / 450f),
+            _ => null,
+        };
+    }
+
+    public override void _Process(double delta)
+    {
+        if (_viewMode != ViewMode.Overview)
+        {
+            return;
+        }
+
+        // A new turn brings the zoomed view back over whoever it now belongs to.
+        if (_panFor != Due)
+        {
+            _panFor = Due;
+            _pan = Vector3.Zero;
+        }
+
+        var eased = Mathf.Lerp(_zoom, _zoomTarget, 1f - Mathf.Exp(-12f * (float)delta));
+        var moved = Mathf.Abs(eased - _zoom) > 0.0005f || _pan != _framedPan;
+        _zoom = Mathf.Abs(eased - _zoomTarget) < 0.001f ? _zoomTarget : eased;
+
+        if (moved)
+        {
+            FrameBoard();
+        }
+    }
+
+    /// <summary>The pan the camera was last framed with.</summary>
+    private Vector3 _framedPan;
+
     private bool Weighing =>
         _game.Pending is { Kind: DecisionKind.TileOrientation or DecisionKind.GuardianAwakening }
         && Session.Owns(Due)
@@ -1582,6 +1677,13 @@ public partial class AppRoot : Node3D
         var extent = Mathf.Max(max.X - min.X, max.Z - min.Z) + BoardView.TileSize;
         var distance = Mathf.Max(extent * 1.25f, 12f);
 
-        _camera.LookAtFromPosition(centre + new Vector3(0f, distance, distance * 0.6f), centre, Vector3.Up);
+        // Zoomed in, the view slides from the temple's middle to the Explorer due to act
+        // — moved by the pan — and comes down towards them.
+        var focus = BoardView.ToWorld(_game.Explorers[Due.Value].Cell) + _pan;
+        var look = centre.Lerp(focus, _zoom);
+        var height = Mathf.Lerp(distance, Mathf.Min(CloseDistance, distance), _zoom);
+
+        _camera.LookAtFromPosition(look + new Vector3(0f, height, height * 0.6f), look, Vector3.Up);
+        _framedPan = _pan;
     }
 }

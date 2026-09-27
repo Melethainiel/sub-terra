@@ -112,7 +112,7 @@ public partial class Hud : CanvasLayer
     };
 
     private const string MouseLegend =
-        "Choisis une carte ci-dessous, puis clique la case visée   ·   V : vue FPS ↔ vue du dessus   ·   F1 : aide";
+        "Choisis une carte, puis clique la case visée   ·   Molette : zoom   ·   V : vue FPS   ·   F1 : aide";
 
     private const string FpsLegend =
         "Souris : regarder   ·   Choisis une carte, puis clique ce qui est devant vous   ·   Échap : vue du dessus";

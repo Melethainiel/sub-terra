@@ -16,6 +16,8 @@ public partial class SettingsScreen : Control
     private static readonly (string Key, string Label)[] ExtraKeys =
     [
         ("1 / 2", "Capacités de l'Explorateur dont c'est le tour"),
+        ("Molette / + −", "Zoomer la vue du dessus"),
+        ("Flèches", "Déplacer la vue zoomée (ou clic du milieu)"),
         ("V", "Basculer vue FPS ↔ vue du dessus"),
         ("F1", "Aide : le but, un tour, les actions, le dé de Péril"),
         ("Échap", "Annuler / revenir à la vue du dessus"),

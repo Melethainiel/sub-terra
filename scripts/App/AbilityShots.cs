@@ -201,6 +201,23 @@ public partial class AbilityShots : Node
             Report("fin de la manche");
         });
 
+        // The view from above, zoomed in on the Explorer due, then moved along.
+        await Scenario("zoom", ["guide", "gredin", "contremaitre"], async () =>
+        {
+            await Shoot("zoom_0");
+            for (var i = 0; i < 5; i++)
+            {
+                Press(Key.Equal);
+            }
+
+            await Wait(1f);
+            await Shoot("zoom_1");
+            Press(Key.Right);
+            Press(Key.Right);
+            await Wait(1f);
+            await Shoot("zoom_pan");
+        });
+
         // No game is played to its end here: the HUD is simply shown the ending.
         await Scenario("fin", ["guide", "gredin", "contremaitre"], async () =>
         {
