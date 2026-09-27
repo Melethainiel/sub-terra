@@ -7,7 +7,7 @@ Headless:
 
 Three kinds of output, for three uses:
 
-  * pieces (key, artefact) — .glb whose materials are named for what they are
+  * pieces (key, artefact, dice, markers) — .glb whose materials are named for what they are
     (Gold, Ember…) and painted by the game like the figures, B+ included;
   * tile dressing (bridge, altar, dart heads…) — .glb with their colours set here,
     in the tone of the rock rather than of the painted pieces;
@@ -43,7 +43,7 @@ TINTS = {
     "Iron": ((0.3, 0.29, 0.28), 0.8, 0.5, None),
     "Rust": ((0.36, 0.2, 0.12), 0.5, 0.75, None),
     "Gold": ((0.95, 0.72, 0.3), 1.0, 0.3, None),
-    "GoldGlow": ((1.0, 0.78, 0.35), 0.0, 0.5, ((1.0, 0.7, 0.25), 3.0)),
+    "GoldGlow": ((1.0, 0.78, 0.35), 0.0, 0.5, ((1.0, 0.62, 0.18), 1.3)),
     "Rune": ((0.55, 0.22, 0.95), 0.0, 0.6, ((0.55, 0.2, 0.95), 0.8)),
     "Lava": ((1.0, 0.35, 0.05), 0.0, 1.0, ((1.0, 0.35, 0.05), 6.0)),
     "Daylight": ((0.85, 0.9, 1.0), 0.0, 1.0, ((0.85, 0.9, 1.0), 4.0)),
@@ -167,13 +167,15 @@ def dart_heads():
     for name, at, facing in (("West", (-0.72, 0.45, 1.05), 0.0), ("South", (0.45, -0.72, 1.05), math.pi / 2)):
         head = root(f"Head{name}")
         head.parent = f
-        part("sphere", "Face", "Stone", head, (0, 0, 0), scale=(0.08, 0.22, 0.24))
-        part("cube", "Brow", "Stone", head, (0.06, 0, 0.1), scale=(0.05, 0.2, 0.035))
+        # Big enough to be found from above, eyes lit so they are.
+        part("sphere", "Face", "Stone", head, (0, 0, 0), scale=(0.12, 0.3, 0.34))
+        part("cube", "Brow", "Stone", head, (0.09, 0, 0.14), scale=(0.07, 0.28, 0.05))
+        part("cone", "Nose", "Stone", head, (0.12, 0, 0.03), rotation=(0, math.pi / 2, 0), scale=(0.05, 0.04, 0.05), radius1=1, radius2=0.3, depth=2, vertices=6)
         for side in (1, -1):
-            part("sphere", f"Eye{side}", "DarkStone", head, (0.075, 0.08 * side, 0.06), scale=(0.02, 0.03, 0.02))
-        part("cylinder", "Mouth", "DarkStone", head, (0.07, 0, -0.08), rotation=(0, math.pi / 2, 0), scale=(0.05, 0.05, 0.03), vertices=12)
+            part("sphere", f"Eye{side}", "Lava", head, (0.105, 0.11 * side, 0.08), scale=(0.025, 0.04, 0.025))
+        part("cylinder", "Mouth", "DarkStone", head, (0.1, 0, -0.12), rotation=(0, math.pi / 2, 0), scale=(0.07, 0.07, 0.04), vertices=12)
         for i in range(3):
-            rod(f"Dart{i}", "Rust", head, (0.06, -0.025 + 0.025 * i, -0.08), (0.12, -0.025 + 0.025 * i, -0.08), 0.005, vertices=4)
+            rod(f"Dart{i}", "Rust", head, (0.09, -0.035 + 0.035 * i, -0.12), (0.18, -0.035 + 0.035 * i, -0.12), 0.007, vertices=4)
         head.location = at
         head.rotation_euler = (0, 0, facing)
     return f
@@ -219,10 +221,16 @@ def rune_circle():
 def key_niche():
     """The Key tile: a keyhole carved into the back wall of the dead end, lit gold."""
     f = root("KeyNiche")
-    part("cube", "Frame", "Stone", f, (0, -0.72, 1.0), scale=(0.28, 0.1, 0.42))
-    part("cylinder", "HoleTop", "GoldGlow", f, (0, -0.64, 1.1), rotation=(math.pi / 2, 0, 0), scale=(0.08, 0.08, 0.03), vertices=20)
-    part("cone", "HoleFoot", "GoldGlow", f, (0, -0.64, 0.93), rotation=(math.pi / 2, 0, 0), scale=(0.075, 0.13, 0.03), radius1=1, radius2=0.35, depth=2, vertices=4)
-    part("cube", "Step", "Stone", f, (0, -0.6, 0.08), scale=(0.35, 0.12, 0.08))
+    # Sunk into the rock: only its face stands proud of the wall.
+    part("cube", "Frame", "Stone", f, (0, -0.8, 1.0), scale=(0.28, 0.1, 0.42))
+    part("cylinder", "HoleTop", "GoldGlow", f, (0, -0.69, 1.1), rotation=(math.pi / 2, 0, 0), scale=(0.08, 0.08, 0.02), vertices=20)
+    part("cone", "HoleFoot", "GoldGlow", f, (0, -0.69, 0.93), rotation=(math.pi / 2, 0, 0), scale=(0.075, 0.13, 0.02), radius1=1, radius2=0.35, depth=2, vertices=4)
+    part("cube", "Step", "Stone", f, (0, -0.62, 0.06), scale=(0.35, 0.1, 0.06))
+    # The same keyhole inlaid in the floor before it, for the view from above.
+    # In the middle of the floor, where no wall or frame can stand in front of it.
+    part("cylinder", "FloorHoleTop", "GoldGlow", f, (0, 0.2, 0.006), scale=(0.1, 0.1, 0.006), vertices=24)
+    part("cone", "FloorHoleFoot", "GoldGlow", f, (0, 0.03, 0.006), rotation=(0, 0, math.pi), scale=(0.1, 0.17, 0.006), radius1=1, radius2=0.35, depth=2, vertices=4)
+    part("torus", "FloorRing", "Gold", f, (0, 0.15, 0.006), scale=(1, 1, 0.3), major_radius=0.34, minor_radius=0.018, major_segments=40)
     return f
 
 
@@ -272,6 +280,175 @@ def camp():
     return f
 
 
+# ── Dice ─────────────────────────────────────────────────────────────────────
+#
+# One metre across, scaled down by the game. Which face is which is the game's
+# contract (scripts/Presentation/Dice.cs): in Blender terms,
+#   d6:    1 +Z, 6 -Z, 2 +X, 5 -X, 3 -Y, 4 +Y  (opposite faces add up to seven)
+#   Peril: Trébucher +Z, Lave -Z, Effondrement +X, Piège -X,
+#          Réveiller un Gardien -Y, Activer les Gardiens +Y
+
+FACES = {
+    "+Z": (0, 0, 0), "-Z": (math.pi, 0, 0),
+    "+X": (0, math.pi / 2, 0), "-X": (0, -math.pi / 2, 0),
+    "+Y": (-math.pi / 2, 0, 0), "-Y": (math.pi / 2, 0, 0),
+}
+
+NORMALS = {"+Z": (0, 0, 1), "-Z": (0, 0, -1), "+X": (1, 0, 0), "-X": (-1, 0, 0), "+Y": (0, 1, 0), "-Y": (0, -1, 0)}
+
+
+def die_body(f, mat):
+    """A cube with well-rounded edges, as a real die has."""
+    bpy.ops.mesh.primitive_cube_add(size=1.0)
+    body = bpy.context.active_object
+    body.name = "Body"
+    bevel = body.modifiers.new("Bevel", "BEVEL")
+    bevel.width = 0.12
+    bevel.segments = 5
+    bpy.ops.object.modifier_apply(modifier="Bevel")
+    bpy.ops.object.shade_smooth()
+    body.data.materials.append(kit.material(mat))
+    body.parent = f
+
+
+def on_face(f, face, name):
+    """A group whose local +Z is the face's outward normal, sitting on that face."""
+    group = root(name)
+    group.parent = f
+    return group
+
+
+def place(group, face, lift=0.5):
+    group.rotation_euler = FACES[face]
+    n = NORMALS[face]
+    group.location = (n[0] * lift, n[1] * lift, n[2] * lift)
+
+
+PIPS = {
+    1: [(0, 0)],
+    2: [(-1, -1), (1, 1)],
+    3: [(-1, -1), (0, 0), (1, 1)],
+    4: [(-1, -1), (1, -1), (-1, 1), (1, 1)],
+    5: [(-1, -1), (1, -1), (0, 0), (-1, 1), (1, 1)],
+    6: [(-1, -1), (-1, 0), (-1, 1), (1, -1), (1, 0), (1, 1)],
+}
+
+
+def die_d6():
+    """The ordinary die: ivory, black pips sunk into it."""
+    f = root("DieD6")
+    die_body(f, "Bone")
+    for value, face in ((1, "+Z"), (6, "-Z"), (2, "+X"), (5, "-X"), (3, "-Y"), (4, "+Y")):
+        group = on_face(f, face, f"Face{value}")
+        for i, (u, v) in enumerate(PIPS[value]):
+            radius = 0.13 if value == 1 else 0.085
+            part("sphere", f"Pip{value}_{i}", "Ash", group, (u * 0.25, v * 0.25, -0.02), scale=(radius, radius, 0.05), segments=16, ring_count=8)
+        place(group, face)
+    return f
+
+
+def glyph_bolt(g):
+    for i, (a, b) in enumerate((((-0.12, 0.3), (0.08, 0.02)), ((0.08, 0.02), (-0.08, -0.02)), ((-0.08, -0.02), (0.12, -0.3)))):
+        rod(f"Bolt{i}", "Glyph", g, (a[0], a[1], 0.01), (b[0], b[1], 0.01), 0.045, vertices=6)
+
+
+def glyph_flame(g):
+    """Three tongues of fire off one bed of embers."""
+    for i, (x, h, lean) in enumerate(((-0.17, 0.75, 0.25), (0.0, 1.0, 0.0), (0.17, 0.8, -0.25))):
+        part("cone", f"Tongue{i}", "Glyph", g, (x, -0.02 + 0.14 * h, 0.01), rotation=(-math.pi / 2, 0, lean),
+             scale=(0.065, 0.03, 0.22 * h), radius1=1, radius2=0, depth=2, vertices=10)
+    part("cube", "Embers", "Glyph", g, (0, -0.22, 0.01), scale=(0.3, 0.05, 0.03))
+
+
+def glyph_collapse(g):
+    for i, (x, y) in enumerate(((-0.15, -0.2), (0.15, -0.2), (0, 0.05), (0.05, 0.3))):
+        part("cube", f"Block{i}", "Glyph", g, (x, y, 0.01), rotation=(0, 0, 0.3 * i), scale=(0.1, 0.08, 0.03))
+
+
+def glyph_trap(g):
+    for i, x in enumerate((-0.22, 0, 0.22)):
+        part("cone", f"Spike{i}", "Glyph", g, (x, 0.02, 0.01), rotation=(math.pi / 2, 0, 0), scale=(0.08, 0.03, 0.2), radius1=1, radius2=0, depth=2, vertices=4)
+    part("cube", "Base", "Glyph", g, (0, -0.22, 0.01), scale=(0.34, 0.04, 0.03))
+
+
+def horned_head(g, x, y, size, tag):
+    part("sphere", f"Head{tag}", "Glyph", g, (x, y, 0.01), scale=(0.12 * size, 0.13 * size, 0.03))
+    for side in (1, -1):
+        part("cone", f"Horn{tag}{side}", "Glyph", g, (x + 0.12 * side * size, y + 0.18 * size, 0.01), rotation=(-math.pi / 2, 0, -0.6 * side),
+             scale=(0.035 * size, 0.03, 0.14 * size), radius1=1, radius2=0, depth=2, vertices=6)
+
+
+def glyph_wake(g):
+    horned_head(g, 0, -0.03, 1.4, "A")
+
+
+def glyph_activate(g):
+    horned_head(g, -0.17, -0.05, 0.95, "A")
+    horned_head(g, 0.17, -0.05, 0.95, "B")
+
+
+def die_peril():
+    """The Peril die: dark as the temple, its six fates burning on the faces."""
+    f = root("DiePeril")
+    die_body(f, "Obsidian")
+    for name, face, draw in (("Stumble", "+Z", glyph_bolt), ("Lava", "-Z", glyph_flame), ("Collapse", "+X", glyph_collapse),
+                             ("Trap", "-X", glyph_trap), ("WakeGuardian", "-Y", glyph_wake), ("ActivateGuardians", "+Y", glyph_activate)):
+        group = on_face(f, face, f"Face{name}")
+        draw(group)
+        place(group, face)
+    return f
+
+
+# ── Markers ──────────────────────────────────────────────────────────────────
+#
+# The rulebook's markers — Consolidation, Démolition, Bouclier — as the thick round
+# counters of a board game: an ivory disc, a gold rim, an icon in relief on top.
+# Half a metre across before the game scales them.
+
+def counter(name, icon):
+    f = root(name)
+    part("cylinder", "Disc", "Bone", f, (0, 0, 0.04), scale=(0.25, 0.25, 0.04), vertices=40)
+    part("torus", "Rim", "Gold", f, (0, 0, 0.075), scale=(1, 1, 0.6), major_radius=0.235, minor_radius=0.018, major_segments=48)
+    icon(f)
+    return f
+
+
+def icon_wall(f):
+    """Consolidation: courses of dressed stone."""
+    for row in range(3):
+        for col in range(3 - row % 2):
+            x = (col - (1 if row % 2 == 0 else 0.5)) * 0.1
+            part("cube", f"Brick{row}{col}", "Armor", f, (x, (row - 1) * 0.065, 0.09), scale=(0.045, 0.028, 0.012))
+
+
+def icon_burst(f):
+    """Démolition: a blast, rays out of a core."""
+    part("sphere", "Core", "Accent", f, (0, 0, 0.09), scale=(0.05, 0.05, 0.015))
+    for i in range(8):
+        a = i * math.tau / 8
+        length = 0.17 if i % 2 == 0 else 0.12
+        rod(f"Ray{i}", "Accent", f, (0.05 * math.cos(a), 0.05 * math.sin(a), 0.09), (length * math.cos(a), length * math.sin(a), 0.09), 0.018, vertices=4)
+
+
+def icon_shield(f):
+    """Bouclier: a heater shield."""
+    part("cube", "Top", "Metal", f, (0, 0.04, 0.09), scale=(0.1, 0.07, 0.014))
+    part("cone", "Point", "Metal", f, (0, -0.08, 0.09), rotation=(0, 0, math.pi), scale=(0.1, 0.1, 0.014), radius1=1.0, radius2=0, depth=2, vertices=3)
+    part("cube", "Boss", "Gold", f, (0, 0.0, 0.104), scale=(0.025, 0.06, 0.004))
+
+
+def marker_consolidation():
+    return counter("MarkerConsolidation", icon_wall)
+
+
+def marker_demolition():
+    return counter("MarkerDemolition", icon_burst)
+
+
+def marker_shield():
+    return counter("MarkerShield", icon_shield)
+
+
 # ── Loose meshes ─────────────────────────────────────────────────────────────
 
 def export_obj(obj, path):
@@ -302,6 +479,11 @@ def loose(out):
 
 
 GLB = {
+    "die_d6": die_d6,
+    "die_peril": die_peril,
+    "marker_consolidation": marker_consolidation,
+    "marker_demolition": marker_demolition,
+    "marker_shield": marker_shield,
     "key": key,
     "artefact": artefact,
     "bridge": bridge,

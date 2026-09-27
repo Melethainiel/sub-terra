@@ -729,6 +729,29 @@ public partial class AppRoot : Node3D
     /// </summary>
     private ExplorerId Due => _game.Pending is { } decision ? decision.Chooser : _game.CurrentExplorer.Id;
 
+    /// <summary>
+    /// Where an explorer's dice land, and from which side they come. From above, on
+    /// their tile in front of the figures, thrown from the camera's side of the table;
+    /// through someone's eyes, smaller and a couple of paces ahead, where it can be seen.
+    /// </summary>
+    private (Vector3 Landing, Vector3 Toward, float Size) ThrowFor(ExplorerId explorer)
+    {
+        // The camera looks down its -Z: its +Z, flattened, points back at the players.
+        var toViewer = _camera.GlobalBasis.Z;
+        toViewer.Y = 0f;
+        toViewer = toViewer.LengthSquared() > 0.001f ? toViewer.Normalized() : Vector3.Back;
+
+        if (_viewMode == ViewMode.Fps)
+        {
+            // At an Explorer's own scale, far enough ahead to fall in the middle of the view.
+            var ahead = -toViewer;
+            var feet = _camera.GlobalPosition with { Y = 0f };
+            return (feet + ahead * 2.2f, toViewer, Dice.Size * 0.6f);
+        }
+
+        return (BoardView.ToWorld(_game.Explorers[explorer.Value].Cell) + toViewer * 0.55f, toViewer, Dice.Size);
+    }
+
     /// <summary>Where the Keys go, and how many are there, once the Sanctuary is found.</summary>
     private (Cell Hall, int Keys)? Sanctuary() =>
         _game.SanctuaryHall is { } hall ? (hall, _game.KeysDeposited) : null;
@@ -1065,7 +1088,13 @@ public partial class AppRoot : Node3D
 
         if (justHappened is not null)
         {
-            _choreographer.Play(justHappened, _board, _tokens, _hud.Cue);
+            _choreographer.Play(
+                justHappened,
+                _board,
+                _tokens,
+                _hud.Cue,
+                _game.CurrentExplorer.Id,
+                ThrowFor);
         }
 
         // Before the highlights: in the FPS view the camera decides what the

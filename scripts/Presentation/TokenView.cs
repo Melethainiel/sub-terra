@@ -129,23 +129,20 @@ public partial class TokenView : Node3D
         return node;
     }
 
-    /// <summary>The Combattante's Bouclier: a halo of gold over her meeple while it holds —
-    /// above the head rather than round the waist, where the rest of a crowded tile
-    /// would hide it.</summary>
-    private void AddShield(Cell cell, Vector3 offset) =>
-        AddChild(new MeshInstance3D
-        {
-            Name = "Shield",
-            Mesh = new TorusMesh { InnerRadius = 0.3f, OuterRadius = 0.4f, Rings = 24, RingSegments = 8 },
-            MaterialOverride = new StandardMaterial3D
-            {
-                AlbedoColor = Palette.Key,
-                EmissionEnabled = true,
-                Emission = Palette.Key,
-                EmissionEnergyMultiplier = 1.4f,
-            },
-            Position = BoardView.ToWorld(cell) + offset + new Vector3(0f, 2.05f, 0f),
-        });
+    /// <summary>The Combattante's Bouclier: its marker hovering over her head, turning slowly
+    /// — above the head rather than beside her, where a crowded tile would hide it.</summary>
+    private void AddShield(Cell cell, Vector3 offset)
+    {
+        var marker = Miniature.Piece(Miniature.ShieldMarker);
+        marker.Name = "Shield";
+        marker.Scale = Vector3.One * 1.1f;
+        marker.Position = BoardView.ToWorld(cell) + offset + new Vector3(0f, 2.15f, 0f);
+        marker.AddChild(new OmniLight3D { LightColor = Palette.Key, LightEnergy = 0.8f, OmniRange = 1.2f });
+        AddChild(marker);
+
+        var spin = marker.CreateTween().SetLoops();
+        spin.TweenProperty(marker, "rotation:y", Mathf.Tau, 5f).AsRelative();
+    }
 
     private void AddToken(string name, Cell cell, ItemKind item)
     {

@@ -26,8 +26,8 @@ public partial class Choreographer : Node3D
     private const float FallTime = 0.3f;
     private const float FloatTime = 1.1f;
 
-    /// <summary>A die on the table gets this long to be read before what it caused follows.</summary>
-    private const float DieTime = 0.7f;
+    /// <summary>After a die lands, a moment to read it before what it caused follows.</summary>
+    private const float ReadTime = 0.35f;
 
     /// <summary>A little room between one consequence and the next.</summary>
     private const float Beat = 0.12f;
@@ -37,7 +37,17 @@ public partial class Choreographer : Node3D
     /// told about each die and each ending at the moment it lands in the playback,
     /// for whatever shows them outside the board. Returns how long the whole playback lasts.
     /// </summary>
-    public float Play(IReadOnlyList<GameEvent> events, BoardView board, TokenView tokens, Action<GameEvent>? cue = null)
+    /// <param name="thrower">Whose turn it is as the command settles: the dice land at
+    /// their feet, unless the events say a turn ended — then at the feet of whoever's it was.</param>
+    /// <param name="throwFor">Where an explorer's dice land, and the horizontal direction
+    /// they are thrown from — the view decides both.</param>
+    public float Play(
+        IReadOnlyList<GameEvent> events,
+        BoardView board,
+        TokenView tokens,
+        Action<GameEvent>? cue = null,
+        ExplorerId? thrower = null,
+        Func<ExplorerId, (Vector3 Landing, Vector3 Toward, float Size)>? throwFor = null)
     {
         foreach (var child in GetChildren())
         {
@@ -64,10 +74,30 @@ public partial class Choreographer : Node3D
             cued = true;
         }
 
+        // Several dice in one command — the curse doubles the Peril die — land side by side.
+        var thrown = 0;
+
         foreach (var @event in events)
         {
             switch (@event)
             {
+                case TurnEnded ended:
+                    thrower = ended.Explorer;
+                    break;
+
+                case PerilRolled or DieRolled:
+                    var (spot, toward, size) = thrower is { } who && throwFor is not null ? throwFor(who) : (Vector3.Zero, Vector3.Back, Dice.Size);
+                    // A second die in the same command lands beside the first.
+                    spot += toward.Cross(Vector3.Up) * (thrown == 0 ? 0f : (thrown % 2 == 1 ? 1.1f : -1.1f) * size);
+                    var (model, up) = @event is PerilRolled peril
+                        ? (Dice.Peril, Dice.FaceOf(peril.Face))
+                        : (Dice.D6, Dice.FaceOf(((DieRolled)@event).Face));
+                    Dice.Throw(this, model, up, spot, toward, clock, seed: Mathf.RoundToInt(clock * 1000f) + thrown * 7919, size);
+                    thrown++;
+                    Cue(@event, clock + Dice.ThrowTime);
+                    clock += Dice.ThrowTime + ReadTime;
+                    break;
+
                 case ExplorerMoved moved:
                     if (!walks.TryGetValue(moved.Explorer, out var walk))
                     {
@@ -119,11 +149,6 @@ public partial class Choreographer : Node3D
                 case ExplorerWentDown down when tokens.ExplorerNode(down.Explorer) is { } meeple:
                     FallOver(meeple, clock);
                     clock += FallTime;
-                    break;
-
-                case PerilRolled or DieRolled:
-                    Cue(@event, clock);
-                    clock += DieTime;
                     break;
 
                 case GameEnded:

@@ -34,6 +34,8 @@ public static class Miniature
 
     public static readonly IReadOnlyDictionary<string, Paint> Paints = new Dictionary<string, Paint>
     {
+        ["Obsidian"] = new(new Color(0.1f, 0.08f, 0.09f), new Color(0.05f, 0.04f, 0.045f), 0.3f, 0.35f, 0f),
+        ["Glyph"] = new(new Color(1f, 0.45f, 0.1f), new Color(1f, 0.4f, 0.08f), 0f, 1f, 1.6f),
         ["Gold"] = new(new Color(1f, 0.8f, 0.32f), new Color(0.85f, 0.62f, 0.22f), 0.9f, 0.3f, 0f),
         ["Hair"] = new(new Color(0.42f, 0.24f, 0.12f), new Color(0.22f, 0.14f, 0.09f), 0f, 0.8f, 0f),
         ["Skin"] = new(new Color(0.96f, 0.72f, 0.55f), new Color(0.82f, 0.6f, 0.48f), 0f, 0.7f, 0f),
@@ -53,6 +55,12 @@ public static class Miniature
     public const string Key = "res://resources/models/props/key.glb";
 
     public const string Artefact = "res://resources/models/props/artefact.glb";
+
+    public const string ConsolidationMarker = "res://resources/models/props/marker_consolidation.glb";
+
+    public const string DemolitionMarker = "res://resources/models/props/marker_demolition.glb";
+
+    public const string ShieldMarker = "res://resources/models/props/marker_shield.glb";
 
     private static readonly Dictionary<string, PackedScene> Figures = [];
 

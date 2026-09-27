@@ -159,11 +159,28 @@ public partial class AbilityShots : Node
             await Shoot("anim_pas");
             await Settle(30);
 
+            // The Peril die, thrown onto the table: in the air, bouncing, at rest.
             Press(Key.Space);
-            await Settle(4);
+            await Wait(0.3f);
             await Shoot("anim_de_1");
-            await Settle(25);
+            await Wait(0.45f);
             await Shoot("anim_de_2");
+            await Wait(0.8f);
+            await Shoot("anim_de_3");
+
+            // The same throw through an Explorer's eyes: the die lands at their feet.
+            Press(Key.V);
+            await Settle(6);
+            Look(new Vector2(0f, 260f));
+            await Settle(4);
+            SettleDecisions();
+            Press(Key.Space);
+            await Wait(0.55f);
+            await Shoot("anim_de_fps_1");
+            await Wait(0.9f);
+            await Shoot("anim_de_fps_2");
+            Press(Key.V);
+            await Settle(4);
             Report("après la fin du tour");
 
             // Two more turns end the round: the Guardian that rose takes its two steps.
@@ -254,11 +271,17 @@ public partial class AbilityShots : Node
         }
     }
 
+    private static void Look(Vector2 relative) =>
+        Input.ParseInputEvent(new InputEventMouseMotion { Relative = relative });
+
     private static void Press(Key key)
     {
         Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = true });
         Input.ParseInputEvent(new InputEventKey { Keycode = key, Pressed = false });
     }
+
+    private async System.Threading.Tasks.Task Wait(float seconds) =>
+        await ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
 
     private async System.Threading.Tasks.Task Settle(int frames)
     {

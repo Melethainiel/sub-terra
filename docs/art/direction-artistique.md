@@ -71,7 +71,8 @@ Les noms reconnus sont :
 
 - `Skin`, `Hair`, `Cloth`, `Coat`, `Leather`, `Accent` ;
 - `Metal`, `Wood`, `Flame` ;
-- `Ash`, `Armor`, `Bone`, `Ember`.
+- `Ash`, `Armor`, `Bone`, `Ember` ;
+- `Gold`, `Obsidian`, `Glyph` (les pions, les dés, les jetons).
 
 Un nom inconnu déclenche un avertissement. Une nouvelle matière s'ajoute d'abord à
 `Miniature.Paints`.

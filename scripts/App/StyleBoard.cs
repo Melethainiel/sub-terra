@@ -1,4 +1,5 @@
 using Godot;
+using SubTerra.Core.Game;
 using SubTerra.Presentation;
 
 namespace SubTerra.App;
@@ -26,6 +27,12 @@ public partial class StyleBoard : Node3D
         _hybrid = style == "hybrid";
         _toon = style is not ("figurine" or "hybrid");
         var table = OS.GetEnvironment("SUBTERRA_VIEW") == "table";
+
+        if (OS.GetEnvironment("SUBTERRA_VIEW") == "dice")
+        {
+            await DiceFaces();
+            return;
+        }
 
         if (OS.GetEnvironment("SUBTERRA_VIEW") == "pieces")
         {
@@ -84,7 +91,52 @@ public partial class StyleBoard : Node3D
         GetTree().Quit();
     }
 
-    /// <summary>The pieces that are not figures: the Key, the Artefact, a Key laid on its pillar.</summary>
+    /// <summary>
+    /// Every face of both dice, each thrown and landed: the label under a die says what
+    /// the engine rolled, the top of the die must say the same — the contract between
+    /// the models and <see cref="Dice"/>.
+    /// </summary>
+    private async System.Threading.Tasks.Task DiceFaces()
+    {
+        AddChild(new WorldEnvironment { Environment = Environment(table: false) });
+        Light();
+
+        List<(string Model, Vector3 Up, string Label)> faces =
+        [
+            .. Enumerable.Range(1, 6).Select(face => (Dice.D6, Dice.FaceOf(face), face.ToString())),
+            .. Enum.GetValues<PerilFace>().Select(face => (Dice.Peril, Dice.FaceOf(face), face.Name())),
+        ];
+
+        for (var index = 0; index < faces.Count; index++)
+        {
+            var (model, up, label) = faces[index];
+            var spot = new Vector3((index % 6 - 2.5f) * 1.4f, 0f, (index / 6) * 1.8f - 0.9f);
+            Dice.Throw(this, model, up, spot, Vector3.Back, at: 0f, seed: index * 31);
+            AddChild(new Label3D
+            {
+                Text = label,
+                FontSize = 36,
+                PixelSize = 0.004f,
+                OutlineSize = 8,
+                Position = spot + new Vector3(0f, 0.02f, 0.72f),
+                RotationDegrees = new Vector3(-90f, 0f, 0f),
+            });
+        }
+
+        var camera = new Camera3D { Fov = 40f, Current = true };
+        AddChild(camera);
+        camera.LookAtFromPosition(new Vector3(0f, 8.2f, 3.2f), new Vector3(0f, 0f, 0.3f), Vector3.Up);
+
+        // Past the throw, before the dice are picked back up.
+        await ToSignal(GetTree().CreateTimer(Dice.ThrowTime + 0.3f), SceneTreeTimer.SignalName.Timeout);
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+
+        GetViewport().GetTexture().GetImage().SavePng(OS.GetEnvironment("SUBTERRA_SHOT"));
+        GetTree().Quit();
+    }
+
+    /// <summary>The pieces that are not figures: the Key, the Artefact, a Key laid on its
+    /// pillar, and the three markers.</summary>
     private async System.Threading.Tasks.Task Pieces()
     {
         AddChild(new WorldEnvironment { Environment = Environment(table: false) });
@@ -108,9 +160,19 @@ public partial class StyleBoard : Node3D
         laid.Position = new Vector3(0f, 0.97f, 0f);
         pillar.AddChild(laid);
 
-        var camera = new Camera3D { Fov = 30f, Current = true };
+        // The rulebook's markers, as counters lying on the table.
+        foreach (var (marker, x) in new[] { (Miniature.ConsolidationMarker, -0.8f), (Miniature.DemolitionMarker, 0f), (Miniature.ShieldMarker, 0.8f) })
+        {
+            var counter = Miniature.Piece(marker);
+            counter.Scale = Vector3.One * 1.3f;
+            counter.Position = new Vector3(x, 0f, 1.1f);
+            counter.RotationDegrees = new Vector3(35f, 0f, 0f);
+            AddChild(counter);
+        }
+
+        var camera = new Camera3D { Fov = 34f, Current = true };
         AddChild(camera);
-        camera.LookAtFromPosition(new Vector3(0f, 1.3f, 4.2f), new Vector3(0f, 0.75f, 0f), Vector3.Up);
+        camera.LookAtFromPosition(new Vector3(0f, 1.9f, 4.6f), new Vector3(0f, 0.55f, 0.4f), Vector3.Up);
 
         for (var i = 0; i < 8; i++)
         {
