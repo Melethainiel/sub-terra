@@ -1157,11 +1157,12 @@ public partial class Hud : CanvasLayer
     private static Button BuildColumn(
         string name, string icon, string cost, string key, Color accent, bool targeted, bool shaded)
     {
+        // Not Flat: a flat button draws none of the fills below — not the shading of
+        // alternate columns, not the hover, not the armed card staying pressed.
         var column = new Button
         {
             FocusMode = Control.FocusModeEnum.None,
             ToggleMode = targeted,
-            Flat = true,
             CustomMinimumSize = new Vector2(ColumnWidth, ColumnHeight),
             MouseDefaultCursorShape = Control.CursorShape.PointingHand,
         };
@@ -1195,15 +1196,18 @@ public partial class Hud : CanvasLayer
         iconLabel.AddThemeColorOverride("font_color", Ink);
         iconLabel.AddThemeFontSizeOverride("font_size", 26);
 
+        // Broken between words only — never "Survivant / e" — and a size smaller when
+        // one word alone is wider than a column: the ability names run long.
+        var longest = name.Split(' ').Max(word => word.Length);
         var nameLabel = new Label
         {
             Text = name,
             HorizontalAlignment = HorizontalAlignment.Center,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            AutowrapMode = TextServer.AutowrapMode.Word,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         nameLabel.AddThemeColorOverride("font_color", Ink);
-        nameLabel.AddThemeFontSizeOverride("font_size", 12);
+        nameLabel.AddThemeFontSizeOverride("font_size", longest > 8 ? 10 : 12);
 
         var spacer = new Control
         {

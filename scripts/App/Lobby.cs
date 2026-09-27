@@ -403,6 +403,7 @@ public partial class Lobby : Control
         _addressInput.Text = _addressText;
         _addressInput.PlaceholderText = "adresse de l'hôte";
         _addressInput.CustomMinimumSize = new Vector2(170, 0);
+        Paper.TextField(_addressInput);
         _addressInput.TextChanged += text => _addressText = text;
 
         var join = new Button
@@ -528,6 +529,7 @@ public partial class Lobby : Control
         seedLabel.AddThemeFontSizeOverride("font_size", 12);
 
         _seedInput.PlaceholderText = "au hasard";
+        Paper.TextField(_seedInput);
         _seedInput.TextChanged += text =>
         {
             _seedText = text;
@@ -692,6 +694,8 @@ public partial class Lobby : Control
             FocusMode = FocusModeEnum.None,
             CustomMinimumSize = new Vector2(44, 44),
             MouseDefaultCursorShape = CursorShape.PointingHand,
+            // Round, not stretched down the whole height of the carousel.
+            SizeFlagsVertical = SizeFlags.ShrinkCenter,
         };
         arrow.AddThemeStyleboxOverride("normal", Paper.CardStyle(bg: Paper.CardSpine, borderWidth: 2f, radius: 22f));
         arrow.AddThemeStyleboxOverride("hover", Paper.CardStyle(bg: Palette.Step, borderWidth: 2f, radius: 22f));
@@ -705,10 +709,8 @@ public partial class Lobby : Control
     /// <summary>
     /// One Explorer's card. The focused one — the centre of the carousel — recruits
     /// or releases on a click and prints both abilities; the two flanking it are a
-    /// smaller preview that only ever changes which one is focused. The portrait area
-    /// is a placeholder meeple, not a real model — the project has no character art
-    /// or 3D model yet, only the flat capsule <c>TokenView</c> already stands each
-    /// Explorer's meeple in as on the board itself.
+    /// smaller preview that only ever changes which one is focused. The portrait is the
+    /// Explorer's own miniature, rendered live (<see cref="Portrait"/>).
     /// </summary>
     private Control BuildExplorerCard(ExplorerSheet sheet, bool focused)
     {
@@ -719,24 +721,31 @@ public partial class Lobby : Control
 
         var width = focused ? 320f : 190f;
 
-        var card = new Button
+        // A panel, not a Button: a Button does not lay its children out, so the card's
+        // contents got no width at all and every label wrapped after each letter.
+        var card = new PanelContainer
         {
-            FocusMode = FocusModeEnum.None,
             CustomMinimumSize = new Vector2(width, 0),
+            SizeFlagsVertical = SizeFlags.ShrinkCenter,
+            MouseFilter = MouseFilterEnum.Stop,
             MouseDefaultCursorShape = CursorShape.PointingHand,
             Modulate = focused ? Colors.White : Colors.White with { A = 0.55f },
         };
 
         var borderWidth = focused ? 3f : 2f;
         var borderColor = isPicked ? seatColor : Paper.BorderLine;
-        var face = Paper.CardStyle(borderWidth: borderWidth, border: borderColor, radius: 16f);
-        card.AddThemeStyleboxOverride("normal", face);
-        card.AddThemeStyleboxOverride("hover", face);
-        card.AddThemeStyleboxOverride("pressed", face);
-        card.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        card.AddThemeStyleboxOverride("panel", Paper.CardStyle(borderWidth: borderWidth, border: borderColor, radius: 16f));
         card.Material = Paper.Grain;
 
-        card.Pressed += focused ? () => Take(sheet.Id) : () => { _focus = _roster.IndexOf(sheet); Refresh(); };
+        Action pick = focused ? () => Take(sheet.Id) : () => { _focus = _roster.IndexOf(sheet); Refresh(); };
+        card.GuiInput += input =>
+        {
+            if (input is InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true })
+            {
+                Audio.Instance?.Play("ui_card", -8f);
+                pick();
+            }
+        };
 
         var pad = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
         pad.AddThemeConstantOverride("margin_left", 14);
@@ -763,6 +772,7 @@ public partial class Lobby : Control
             Text = sheet.Name,
             HorizontalAlignment = HorizontalAlignment.Center,
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
         };
         name.AddThemeColorOverride("font_color", Paper.Ink);
         name.AddThemeFontSizeOverride("font_size", focused ? 20 : 14);
@@ -780,10 +790,15 @@ public partial class Lobby : Control
         if (focused)
         {
             var pill = new PanelContainer { SizeFlagsHorizontal = SizeFlags.ShrinkCenter };
-            pill.AddThemeStyleboxOverride("panel", Paper.CardStyle(bg: Palette.For(sheet.Domain) with { A = 0.32f }, borderWidth: 0f, radius: 8f));
+            var pillStyle = Paper.CardStyle(bg: Palette.For(sheet.Domain) with { A = 0.55f }, border: Paper.Ink with { A = 0.35f }, borderWidth: 1f, radius: 8f);
+            pillStyle.ContentMarginLeft = 10;
+            pillStyle.ContentMarginRight = 10;
+            pillStyle.ContentMarginTop = 2;
+            pillStyle.ContentMarginBottom = 2;
+            pill.AddThemeStyleboxOverride("panel", pillStyle);
             var pillLabel = new Label { Text = Say(sheet.Domain) };
             pillLabel.AddThemeColorOverride("font_color", Paper.Ink);
-            pillLabel.AddThemeFontSizeOverride("font_size", 10);
+            pillLabel.AddThemeFontSizeOverride("font_size", 12);
             pill.AddChild(pillLabel);
             var pillCenter = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };
             pillCenter.AddChild(pill);
@@ -794,21 +809,7 @@ public partial class Lobby : Control
         var figurePanel = new PanelContainer { CustomMinimumSize = new Vector2(0, focused ? 190 : 100) };
         figurePanel.AddThemeStyleboxOverride("panel", Paper.CardStyle(bg: seatColor with { A = isPicked ? 0.3f : 0.16f }, borderWidth: 0f, radius: 12f));
 
-        var figureLayout = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = MouseFilterEnum.Ignore };
-        figureLayout.AddThemeConstantOverride("separation", 4);
-        figureLayout.AddChild(Paper.Meeple(seatColor, focused ? 60f : 34f, focused ? 128f : 74f));
-
-        if (focused)
-        {
-            var tbd = new Label { Text = "modèle 3D à venir", HorizontalAlignment = HorizontalAlignment.Center };
-            tbd.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.4f });
-            tbd.AddThemeFontSizeOverride("font_size", 9);
-            figureLayout.AddChild(tbd);
-        }
-
-        var figureCenterInner = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore, SizeFlagsVertical = SizeFlags.ExpandFill };
-        figureCenterInner.AddChild(figureLayout);
-        figurePanel.AddChild(figureCenterInner);
+        figurePanel.AddChild(Portrait(sheet.Id, seatColor, isPicked, focused ? new Vector2(200, 200) : new Vector2(110, 110), turning: focused));
         figureCenter.AddChild(figurePanel);
         col.AddChild(figureCenter);
 
@@ -829,7 +830,76 @@ public partial class Lobby : Control
 
         pad.AddChild(col);
         card.AddChild(pad);
+        LetClicksThrough(pad);
         return card;
+    }
+
+    /// <summary>Everything inside a card lets the mouse through to the card itself —
+    /// a panel stops it by default, and a click on the portrait would go nowhere.</summary>
+    private static void LetClicksThrough(Node node)
+    {
+        if (node is Control control)
+        {
+            control.MouseFilter = MouseFilterEnum.Ignore;
+        }
+
+        foreach (var child in node.GetChildren())
+        {
+            LetClicksThrough(child);
+        }
+    }
+
+    /// <summary>
+    /// The Explorer's own miniature, rendered live on its base and turning slowly on
+    /// the card — the figure that will stand at the table, in the seat's colour once
+    /// taken.
+    /// </summary>
+    private static Control Portrait(string sheetId, Color seatColor, bool isPicked, Vector2 size, bool turning)
+    {
+        var frame = new SubViewportContainer { Stretch = true, CustomMinimumSize = size };
+        var view = new SubViewport
+        {
+            OwnWorld3D = true,
+            TransparentBg = true,
+            Msaa3D = Viewport.Msaa.Msaa4X,
+            Size = (Vector2I)(size * 2),
+        };
+        frame.AddChild(view);
+
+        var model = $"res://resources/models/figures/{sheetId}.glb";
+        var figure = Miniature.Stand(
+            ResourceLoader.Exists(model) ? model : "res://resources/models/figures/explorer_sketch.glb",
+            Miniature.ExplorerBase,
+            isPicked ? seatColor : null,
+            isPicked ? seatColor : null);
+        figure.RotationDegrees = new Vector3(0f, 25f, 0f);
+        view.AddChild(figure);
+
+        if (turning)
+        {
+            var spin = figure.CreateTween().SetLoops();
+            spin.TweenProperty(figure, "rotation:y", Mathf.Tau, 12f).AsRelative();
+        }
+
+        view.AddChild(new DirectionalLight3D { RotationDegrees = new Vector3(-35f, 30f, 0f), LightEnergy = 1.3f, LightColor = new Color(1f, 0.92f, 0.8f) });
+        view.AddChild(new OmniLight3D { Position = new Vector3(-0.6f, 1.6f, -1.2f), LightColor = new Color(0.6f, 0.7f, 1f), LightEnergy = 1.5f, OmniRange = 4f });
+        view.AddChild(new WorldEnvironment
+        {
+            Environment = new Godot.Environment
+            {
+                BackgroundMode = Godot.Environment.BGMode.ClearColor,
+                AmbientLightSource = Godot.Environment.AmbientSource.Color,
+                AmbientLightColor = new Color(0.9f, 0.8f, 0.7f),
+                AmbientLightEnergy = 0.5f,
+                TonemapMode = Godot.Environment.ToneMapper.Filmic,
+            },
+        });
+
+        var camera = new Camera3D { Fov = 30f, Current = true };
+        view.AddChild(camera);
+        camera.LookAtFromPosition(new Vector3(0f, 1.2f, 4.1f), new Vector3(0f, 0.88f, 0f), Vector3.Up);
+
+        return frame;
     }
 
     private static Control BuildAbility(Ability ability)

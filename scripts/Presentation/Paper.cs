@@ -109,10 +109,11 @@ public static class Paper
             var index = i;
             var active = i == selected;
 
+            // Not Flat: a flat button draws no background at all, and the chosen pill's
+            // dark fill vanished, leaving light text on light paper.
             var pill = new Button
             {
                 Text = options[i],
-                Flat = true,
                 FocusMode = Control.FocusModeEnum.None,
                 ToggleMode = false,
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
@@ -137,6 +138,50 @@ public static class Paper
 
         frame.AddChild(row);
         return frame;
+    }
+
+    /// <summary>A slider on paper: a thin rule, filled in sienna up to the grabber.</summary>
+    public static void Slider(HSlider slider)
+    {
+        StyleBoxFlat Rail(Color colour) => new()
+        {
+            BgColor = colour,
+            CornerRadiusTopLeft = 3,
+            CornerRadiusTopRight = 3,
+            CornerRadiusBottomLeft = 3,
+            CornerRadiusBottomRight = 3,
+            ContentMarginTop = 3,
+            ContentMarginBottom = 3,
+        };
+
+        slider.AddThemeStyleboxOverride("slider", Rail(CardShade));
+        slider.AddThemeStyleboxOverride("grabber_area", Rail(Sienna));
+        slider.AddThemeStyleboxOverride("grabber_area_highlight", Rail(Sienna.Lightened(0.15f)));
+    }
+
+    /// <summary>A text field on paper: ink on a lighter card, a darker rule when focused —
+    /// not Godot's default dark field, which reads as a hole in the page.</summary>
+    public static void TextField(LineEdit edit)
+    {
+        StyleBoxFlat Box(Color border, float width)
+        {
+            var box = CardStyle(bg: CardSpine, border: border, borderWidth: width, radius: 6f);
+            box.ContentMarginLeft = 8;
+            box.ContentMarginRight = 8;
+            box.ContentMarginTop = 4;
+            box.ContentMarginBottom = 4;
+            return box;
+        }
+
+        edit.AddThemeStyleboxOverride("normal", Box(BorderLine with { A = 0.5f }, 1f));
+        edit.AddThemeStyleboxOverride("focus", Box(Sienna, 2f));
+        edit.AddThemeStyleboxOverride("read_only", Box(BorderLine with { A = 0.25f }, 1f));
+        edit.AddThemeColorOverride("font_color", Ink);
+        edit.AddThemeColorOverride("font_readonly_color", Ink with { A = 0.55f });
+        edit.AddThemeColorOverride("font_placeholder_color", Ink with { A = 0.4f });
+        edit.AddThemeColorOverride("caret_color", Ink);
+        edit.AddThemeColorOverride("selection_color", Sienna with { A = 0.3f });
+        edit.AddThemeFontSizeOverride("font_size", 13);
     }
 
     /// <summary>
@@ -181,10 +226,10 @@ public static class Paper
     /// stamped on it once it's on. The tabletop's own idea of a toggle switch.</summary>
     public static Control Checkbox(bool value, Action<bool> onToggle)
     {
+        // Not Flat, like the segmented pills: a flat button draws no box to tick.
         var box = new Button
         {
             Text = value ? "✓" : "",
-            Flat = true,
             FocusMode = Control.FocusModeEnum.None,
             CustomMinimumSize = new Vector2(24, 24),
             MouseDefaultCursorShape = Control.CursorShape.PointingHand,

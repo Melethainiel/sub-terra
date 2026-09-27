@@ -116,15 +116,21 @@ public partial class Home : Control
         var button = new Button
         {
             Text = label,
-            Flat = true,
             FocusMode = FocusModeEnum.None,
             MouseDefaultCursorShape = CursorShape.PointingHand,
         };
-        button.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-        button.AddThemeStyleboxOverride("hover", Underline());
-        button.AddThemeStyleboxOverride("pressed", Underline());
+        // The same margins whether underlined or not: a hover that changed the
+        // button's size re-laid the row under the pointer and clipped the last letter.
+        button.AddThemeStyleboxOverride("normal", Underline(Colors.Transparent));
+        button.AddThemeStyleboxOverride("hover", Underline(LinkGold));
+        button.AddThemeStyleboxOverride("pressed", Underline(LinkGold));
         button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         button.AddThemeFontSizeOverride("font_size", 30);
+
+        // The torch's beam in the painting runs behind the menu: an outline keeps the
+        // words legible where it does.
+        button.AddThemeConstantOverride("outline_size", 8);
+        button.AddThemeColorOverride("font_outline_color", new Color(0.06f, 0.03f, 0.02f, 0.85f));
 
         foreach (var state in new[] { "font_color", "font_pressed_color" })
         {
@@ -137,16 +143,22 @@ public partial class Home : Control
         button.MouseExited += () => mark.Modulate = Colors.White with { A = 0f };
         button.Pressed += onChosen;
 
+        // The mark takes room even while hidden; the same room on the other side keeps
+        // each word on the menu's centre line.
+        var balance = new Control { MouseFilter = MouseFilterEnum.Ignore };
+        mark.Resized += () => balance.CustomMinimumSize = mark.Size;
+
         row.AddChild(mark);
         row.AddChild(button);
+        row.AddChild(balance);
         _links.Add((button, mark));
         return row;
     }
 
-    private static StyleBoxFlat Underline() => new()
+    private static StyleBoxFlat Underline(Color line) => new()
     {
         BgColor = Colors.Transparent,
-        BorderColor = LinkGold,
+        BorderColor = line,
         BorderWidthBottom = 2,
         ContentMarginLeft = 4,
         ContentMarginRight = 4,

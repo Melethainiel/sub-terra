@@ -182,6 +182,7 @@ public partial class SettingsScreen : Control
                     Audio.Instance?.Play("ui_click", -6f);
                 }
             };
+            Paper.Slider(slider);
             row.AddChild(slider);
 
             col.AddChild(row);
@@ -233,13 +234,20 @@ public partial class SettingsScreen : Control
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 8);
 
-        var badge = new PanelContainer { CustomMinimumSize = new Vector2(0, 22) };
-        badge.AddThemeStyleboxOverride("panel", Paper.CardStyle(bg: Paper.CardSpine, borderWidth: 2f, radius: 6f));
+        // Room inside the border, so a long key — Espace, Échap — widens the badge
+        // instead of running into its edge.
+        var badge = new PanelContainer { CustomMinimumSize = new Vector2(0, 22), SizeFlagsVertical = SizeFlags.ShrinkCenter };
+        var badgeStyle = Paper.CardStyle(bg: Paper.CardSpine, borderWidth: 2f, radius: 6f);
+        badgeStyle.ContentMarginLeft = 7;
+        badgeStyle.ContentMarginRight = 7;
+        badgeStyle.ContentMarginTop = 1;
+        badgeStyle.ContentMarginBottom = 1;
+        badge.AddThemeStyleboxOverride("panel", badgeStyle);
         var badgeLabel = new Label
         {
             Text = key,
             HorizontalAlignment = HorizontalAlignment.Center,
-            CustomMinimumSize = new Vector2(30, 0),
+            CustomMinimumSize = new Vector2(18, 0),
         };
         badgeLabel.AddThemeColorOverride("font_color", Paper.Ink);
         badgeLabel.AddThemeFontSizeOverride("font_size", 12);
