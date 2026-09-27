@@ -51,6 +51,7 @@ public partial class Lobby : Control
     public override void _Ready()
     {
         _mode = Session.RequestedMode;
+        Audio.Instance?.Menu();
         _seedInput = new LineEdit();
         _addressInput = new LineEdit();
 

@@ -39,6 +39,8 @@ public partial class Choreographer : Node3D
     /// </summary>
     /// <param name="thrower">Whose turn it is as the command settles: the dice land at
     /// their feet, unless the events say a turn ended — then at the feet of whoever's it was.</param>
+    /// <param name="sound">Told each event with the moment it happens in the playback —
+    /// a die's at the start of its throw, which knows its own bounces.</param>
     /// <param name="throwFor">Where an explorer's dice land, and the horizontal direction
     /// they are thrown from — the view decides both.</param>
     public float Play(
@@ -47,7 +49,8 @@ public partial class Choreographer : Node3D
         TokenView tokens,
         Action<GameEvent>? cue = null,
         ExplorerId? thrower = null,
-        Func<ExplorerId, (Vector3 Landing, Vector3 Toward, float Size)>? throwFor = null)
+        Func<ExplorerId, (Vector3 Landing, Vector3 Toward, float Size)>? throwFor = null,
+        Action<GameEvent, float>? sound = null)
     {
         foreach (var child in GetChildren())
         {
@@ -79,6 +82,11 @@ public partial class Choreographer : Node3D
 
         foreach (var @event in events)
         {
+            // The moment the event is heard: where the playback has got to, unless it
+            // shows it later — a tile is heard when it lands, not when it starts to fall.
+            var heard = @event is TileRevealed ? clock + TileDropTime : clock;
+            sound?.Invoke(@event, heard);
+
             switch (@event)
             {
                 case TurnEnded ended:

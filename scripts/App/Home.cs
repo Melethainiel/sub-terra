@@ -18,6 +18,7 @@ public partial class Home : Control
     public override void _Ready()
     {
         Settings.Apply();
+        Audio.Instance?.Menu();
 
         var art = new TitleArt();
         art.SetAnchorsPreset(LayoutPreset.FullRect);

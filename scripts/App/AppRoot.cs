@@ -80,6 +80,7 @@ public partial class AppRoot : Node3D
     private BoardView _board = null!;
     private TokenView _tokens = null!;
     private Choreographer _choreographer = null!;
+    private Soundscape _soundscape = null!;
     private HighlightView _highlights = null!;
     private Hud _hud = null!;
     private Camera3D _camera = null!;
@@ -143,6 +144,8 @@ public partial class AppRoot : Node3D
         _tokens = new TokenView { Name = "TokenView" };
         _highlights = new HighlightView { Name = "HighlightView" };
         _choreographer = new Choreographer { Name = "Choreographer" };
+        _soundscape = new Soundscape { Name = "Soundscape" };
+        AddChild(_soundscape);
         AddChild(_board);
         AddChild(_highlights);
         AddChild(_tokens);
@@ -1084,6 +1087,7 @@ public partial class AppRoot : Node3D
         }
 
         _board.Render(_game.Board, Previewed(), justHappened, _game.Rubble, Sanctuary());
+        _soundscape.Mood(_game);
         _tokens.Render(_game, _viewMode == ViewMode.Fps ? Due : null, Stirring());
 
         if (justHappened is not null)
@@ -1094,7 +1098,8 @@ public partial class AppRoot : Node3D
                 _tokens,
                 _hud.Cue,
                 _game.CurrentExplorer.Id,
-                ThrowFor);
+                ThrowFor,
+                _soundscape.At);
         }
 
         // Before the highlights: in the FPS view the camera decides what the

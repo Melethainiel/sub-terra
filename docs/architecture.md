@@ -221,6 +221,34 @@ Le clic ne passe par aucun collisionneur : on projette le rayon de la caméra su
 le plan de la table et on arrondit. Le plateau est une grille, pas une scène à
 sonder.
 
+## Le son
+
+Tout est synthétisé par `tools/audio/synth.py` (numpy et ffmpeg) : rien n'est
+enregistré ni téléchargé. Le script produit des bruits filtrés, des résonateurs
+amortis, des sons additifs, et une caverne par convolution. Il écrit dans
+`resources/audio/` des boucles d'ambiance, une musique et une trentaine d'effets,
+certains en plusieurs variantes. Il dessine au besoin le spectrogramme de chaque son
+(`--spectra`) : c'est ce qui a montré qu'un filtre FFT circulaire donnait à chaque son
+un faux second impact.
+
+Quatre bus (`default_bus_layout.tres`) : Général, Musique, Ambiance, Effets. Leurs
+volumes sont réglables et sauvegardés (`Settings`).
+
+`Audio` (autoload) garde la musique des menus d'un écran à l'autre, sert les effets
+(une variante au hasard, légèrement désaccordée) et fait cliquer tout bouton créé dans
+le jeu. À la table, `Soundscape` fait respirer le temple : l'air, l'eau, et le volcan
+dessous, qui monte avec la piste d'Éruption. Il associe chaque événement à son son,
+au moment où le `Choreographer` le montre : un pas quand le pion avance, un choc du dé
+à chaque rebond.
+
+Pour vérifier qu'on entend ce qu'on voit, au bon moment, on enregistre une partie
+jouée par le banc d'essai, son compris, puis on lit le spectrogramme de la piste :
+
+```
+SUBTERRA_ONLY=animations SUBTERRA_SHOT=/tmp/r godot --path . \
+    --write-movie /tmp/r.avi --fixed-fps 30 res://scenes/_ability_shots.tscn
+```
+
 ## Arborescence Godot
 
 ```

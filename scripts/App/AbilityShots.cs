@@ -15,6 +15,8 @@ namespace SubTerra.App;
 /// <code>
 /// SUBTERRA_SHOT=/tmp/abilities godot --path . res://scenes/_ability_shots.tscn
 /// </code>
+/// With <c>SUBTERRA_ONLY=animations</c> and Godot's <c>--write-movie</c>, it records a
+/// playback, sound included, to check what is heard lands when it is seen.
 /// </summary>
 public partial class AbilityShots : Node
 {
@@ -218,6 +220,12 @@ public partial class AbilityShots : Node
 
     private async System.Threading.Tasks.Task Scenario(string name, string[] sheets, Func<System.Threading.Tasks.Task> play)
     {
+        // SUBTERRA_ONLY=animations plays that scenario alone — for a recording, say.
+        if (OS.GetEnvironment("SUBTERRA_ONLY") is { Length: > 0 } only && only != name)
+        {
+            return;
+        }
+
         GD.Print($"── {name} ──");
         Session.Party = [.. sheets.Select(sheet => new Session.Seat(sheet, Session.HostPeer))];
         Session.IsOnline = false;

@@ -25,6 +25,8 @@ public partial class SettingsScreen : Control
 
     public override void _Ready()
     {
+        Audio.Instance?.Menu();
+
         var background = new ColorRect { Color = Paper.Field, MouseFilter = MouseFilterEnum.Ignore };
         background.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(background);
@@ -48,6 +50,7 @@ public partial class SettingsScreen : Control
         stage.AddChild(sections);
 
         sections.AddChild(BuildDisplaySection());
+        sections.AddChild(BuildSoundSection());
         sections.AddChild(BuildCommandsSection());
     }
 
@@ -141,6 +144,48 @@ public partial class SettingsScreen : Control
         note.AddThemeColorOverride("font_color", Paper.Ink with { A = 0.45f });
         note.AddThemeFontSizeOverride("font_size", 11);
         col.AddChild(note);
+
+        return panel;
+    }
+
+    /// <summary>One slider per audio bus, saved as it moves.</summary>
+    private Control BuildSoundSection()
+    {
+        var (panel, col) = BuildCard("Son", Palette.Support);
+
+        foreach (var (bus, label, _) in Settings.Buses)
+        {
+            var row = new HBoxContainer();
+            row.AddThemeConstantOverride("separation", 10);
+
+            var name = new Label { Text = label, CustomMinimumSize = new Vector2(80, 0) };
+            name.AddThemeColorOverride("font_color", Paper.Ink);
+            name.AddThemeFontSizeOverride("font_size", 13);
+            row.AddChild(name);
+
+            var slider = new HSlider
+            {
+                MinValue = 0,
+                MaxValue = 1,
+                Step = 0.05,
+                Value = Settings.Volume(bus),
+                CustomMinimumSize = new Vector2(180, 0),
+                SizeFlagsVertical = SizeFlags.ShrinkCenter,
+            };
+            slider.ValueChanged += value =>
+            {
+                Settings.SetVolume(bus, (float)value);
+
+                // Heard as it is set, for anything but the music, which is already playing.
+                if (bus is "Sfx" or "Master")
+                {
+                    Audio.Instance?.Play("ui_click", -6f);
+                }
+            };
+            row.AddChild(slider);
+
+            col.AddChild(row);
+        }
 
         return panel;
     }

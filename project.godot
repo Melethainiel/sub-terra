@@ -18,6 +18,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 MCPRuntime="*uid://by6ul4pamc7eu"
+Audio="*res://scripts/App/Audio.cs"
 
 [display]
 
