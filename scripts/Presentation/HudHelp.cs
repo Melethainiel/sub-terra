@@ -82,7 +82,7 @@ public partial class Hud
         Line(right, "Clic : jouer la carte en main sur une case.   Maj+clic : révéler sans entrer.   Ctrl+clic : creuser.");
         Line(right, "Molette ou R : tourner la tuile, ou changer de case, avant de trancher.");
         Line(right, "Vue du dessus : molette ou + / − pour zoomer, flèches ou clic du milieu pour déplacer la vue.");
-        Line(right, "V : vue à la première personne ↔ vue du dessus.   Échap ou clic droit : annuler.");
+        Line(right, "V : vue à la première personne ↔ vue du dessus.   Échap ou clic droit : annuler — sinon, le menu (sauvegarder, quitter).");
         Line(right, "F1 : cette aide.");
 
         AddChild(veil);

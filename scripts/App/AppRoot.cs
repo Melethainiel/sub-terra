@@ -161,6 +161,7 @@ public partial class AppRoot : Node3D
         _hud.OptionChosen += option => Apply(new Decide(option));
         _hud.OptionPreviewed += ShowOption;
         _hud.CanReplay = !Session.IsOnline;
+        _hud.MenuChosen += OnMenu;
         _hud.EndChosen += again =>
         {
             if (again && !Session.IsOnline)
@@ -199,10 +200,14 @@ public partial class AppRoot : Node3D
 
         if (Session.IsOnline)
         {
+            _listening = true;
             Multiplayer.ServerDisconnected += HostGone;
             OpenTable();
         }
     }
+
+    /// <summary>Whether this table listens to the network coming and going.</summary>
+    private bool _listening;
 
     public override void _ExitTree()
     {
@@ -211,8 +216,12 @@ public partial class AppRoot : Node3D
             net.Table = null;
         }
 
-        Multiplayer.PeerDisconnected -= Abandoned;
-        Multiplayer.ServerDisconnected -= HostGone;
+        // Only an online table listened: a solo one has nothing to let go of.
+        if (_listening)
+        {
+            Multiplayer.PeerDisconnected -= Abandoned;
+            Multiplayer.ServerDisconnected -= HostGone;
+        }
     }
 
     /// <summary>
@@ -251,6 +260,18 @@ public partial class AppRoot : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        // The menu open, the table waits: Échap closes it, and nothing else gets through.
+        if (_hud.MenuOpen)
+        {
+            if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
+            {
+                ToggleMenu();
+            }
+
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
         // Looking around is never a move: it stays live even mid-arbitration, once
         // the game is over, or while waiting for the rest of the table.
         if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.V })
@@ -285,6 +306,22 @@ public partial class AppRoot : Node3D
             && _viewMode == ViewMode.Fps)
         {
             ToggleView();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        // Nothing left to back out of: Échap opens the menu — the help first, if open.
+        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
+        {
+            if (_hud.HelpOpen)
+            {
+                _hud.ToggleHelp();
+            }
+            else
+            {
+                ToggleMenu();
+            }
+
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -925,6 +962,7 @@ public partial class AppRoot : Node3D
         else
         {
             SaveGame.Write(_record);
+            _savedAt = DateTime.Now;
         }
     }
 
@@ -1097,6 +1135,71 @@ public partial class AppRoot : Node3D
         Rpc(nameof(Seats), Session.Encode(Session.Party));
         Refresh();
         Say($"Le joueur {peer} a quitté la table ; l'hôte reprend ses Explorateurs.");
+    }
+
+    /// <summary>When the game was last written to disk, if it has been this session.</summary>
+    private DateTime? _savedAt;
+
+    /// <summary>Whether this machine keeps the game: alone, or hosting — a client's
+    /// game is the host's to save.</summary>
+    private bool KeepsTheGame => Session.IsHost && _record is not null;
+
+    private void ToggleMenu()
+    {
+        var note = !KeepsTheGame
+            ? "C'est l'hôte qui sauvegarde la partie."
+            : _game.IsOver
+                ? "La partie est terminée : il n'y a plus rien à reprendre."
+                : _savedAt is { } at
+                    ? $"Sauvegarde automatique après chaque action — dernière à {at:HH:mm:ss}. Tu la retrouveras sous « Reprendre la partie » à l'accueil."
+                    : "Sauvegarde automatique après chaque action. Tu la retrouveras sous « Reprendre la partie » à l'accueil.";
+
+        _hud.ToggleMenu(note, KeepsTheGame && !_game.IsOver);
+        SyncMouseMode();
+    }
+
+    /// <summary>Writes the game now, if this machine keeps it and it is not over.</summary>
+    private bool SaveNow()
+    {
+        if (!KeepsTheGame || _game.IsOver)
+        {
+            return false;
+        }
+
+        SaveGame.Write(_record!);
+        _savedAt = DateTime.Now;
+        return true;
+    }
+
+    private void OnMenu(string choice)
+    {
+        switch (choice)
+        {
+            case "open" or "resume":
+                ToggleMenu();
+                break;
+
+            case "save":
+                _hud.Toast(SaveNow() ? "Partie sauvegardée." : "Rien à sauvegarder.");
+                ToggleMenu();
+                break;
+
+            case "help":
+                ToggleMenu();
+                _hud.ToggleHelp();
+                break;
+
+            case "home":
+                SaveNow();
+                Multiplayer.MultiplayerPeer?.Close();
+                GetTree().ChangeSceneToFile("res://scenes/app/Home.tscn");
+                break;
+
+            case "quit":
+                SaveNow();
+                GetTree().Quit();
+                break;
+        }
     }
 
     /// <summary>Someone took up seats the host had been minding: everyone is told.</summary>
@@ -1344,7 +1447,7 @@ public partial class AppRoot : Node3D
     /// cursor stuck at screen-centre could never reach, and not once nothing is being
     /// played any more.
     /// </summary>
-    private bool ShouldCapture => _viewMode == ViewMode.Fps && _begun && !_game.IsOver && _game.Pending is null;
+    private bool ShouldCapture => _viewMode == ViewMode.Fps && _begun && !_game.IsOver && _game.Pending is null && !_hud.MenuOpen;
 
     /// <summary>
     /// A free cursor stops dead at the edge of the screen, so turning any further

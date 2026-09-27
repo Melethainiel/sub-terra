@@ -37,6 +37,23 @@ public partial class TableShots : Node
         await Settle(20);
         await Shoot("overview");
 
+        // Échap with nothing to back out of opens the menu, and the table stops
+        // listening: V does nothing while it is open. Échap again closes it.
+        Press(Key.Escape);
+        await Settle(4);
+        Press(Key.V);
+        await Settle(6);
+        await Shoot("menu");
+        Press(Key.Escape);
+        await Settle(4);
+
+        // Sauvegarder closes the menu and says it is done.
+        Press(Key.Escape);
+        await Settle(4);
+        table.GetNode("Hud").EmitSignal(Hud.SignalName.MenuChosen, "save");
+        await Settle(6);
+        await Shoot("sauvegarde");
+
         Press(Key.V);
         await Settle(10);
         await Shoot("fps");

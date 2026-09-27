@@ -112,7 +112,7 @@ public partial class Hud : CanvasLayer
     };
 
     private const string MouseLegend =
-        "Choisis une carte, puis clique la case visée   ·   Molette : zoom   ·   V : vue FPS   ·   F1 : aide";
+        "Choisis une carte, puis clique la case visée   ·   Molette : zoom   ·   V : vue FPS   ·   F1 : aide   ·   Échap : menu";
 
     private const string FpsLegend =
         "Souris : regarder   ·   Choisis une carte, puis clique ce qui est devant vous   ·   Échap : vue du dessus";
@@ -207,6 +207,7 @@ public partial class Hud : CanvasLayer
 
         BuildStatusColumn();
         BuildActionsCard();
+        BuildMenuButton();
     }
 
     /// <summary>

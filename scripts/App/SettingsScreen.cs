@@ -20,7 +20,7 @@ public partial class SettingsScreen : Control
         ("Flèches", "Déplacer la vue zoomée (ou clic du milieu)"),
         ("V", "Basculer vue FPS ↔ vue du dessus"),
         ("F1", "Aide : le but, un tour, les actions, le dé de Péril"),
-        ("Échap", "Annuler / revenir à la vue du dessus"),
+        ("Échap", "Annuler / revenir à la vue du dessus / menu de partie"),
     ];
 
     private Control _viewRow = null!;
