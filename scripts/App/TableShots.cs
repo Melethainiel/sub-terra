@@ -19,6 +19,8 @@ public partial class TableShots : Node
 {
     public override async void _Ready()
     {
+        SaveGame.Enabled = false;
+
         Session.Party = [
             new Session.Seat("guerisseuse", Session.HostPeer),
             new Session.Seat("pretre", Session.HostPeer),

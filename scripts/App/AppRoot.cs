@@ -75,8 +75,22 @@ public partial class AppRoot : Node3D
 
     private GameState _game = null!;
 
+    /// <summary>The game so far, as a record: what is saved, and what a latecomer is
+    /// handed. <c>null</c> for a scene run on its own with a throwaway party.</summary>
+    private GameRecord? _record;
+
+    /// <summary>The game so far, for a latecomer to be handed.</summary>
+    public GameRecord Record => _record ?? GameRecord.Start(Session.Seed, Session.Difficulty, []);
+
     /// <summary>This machine's game, to read — for the dev tools that drive a table.</summary>
     internal GameState Game => _game;
+
+    /// <summary>Plays a command as this machine's player would — for the dev tools that
+    /// drive a table without a mouse.</summary>
+    internal void Submit(GameCommand command) => Apply(command);
+
+    /// <summary>Whether this machine may act now — for the same dev tools.</summary>
+    internal bool IsDueHere => Session.Owns(Due) && _begun;
     private BoardView _board = null!;
     private TokenView _tokens = null!;
     private Choreographer _choreographer = null!;
@@ -151,15 +165,33 @@ public partial class AppRoot : Node3D
         AddChild(_tokens);
         AddChild(_choreographer);
 
+        var resumed = Session.Resume is not null;
         _game = NewGame();
 
         Refresh();
-        Say("L'expédition entre dans le temple.");
+        Say(resumed ? "La partie reprend où elle s'était arrêtée." : "L'expédition entre dans le temple.");
+
+        if (Net.Instance is { } net)
+        {
+            net.Table = this;
+        }
 
         if (Session.IsOnline)
         {
+            Multiplayer.ServerDisconnected += HostGone;
             OpenTable();
         }
+    }
+
+    public override void _ExitTree()
+    {
+        if (Net.Instance is { } net && net.Table == this)
+        {
+            net.Table = null;
+        }
+
+        Multiplayer.PeerDisconnected -= Abandoned;
+        Multiplayer.ServerDisconnected -= HostGone;
     }
 
     /// <summary>
@@ -168,10 +200,27 @@ public partial class AppRoot : Node3D
     /// </summary>
     private GameState NewGame()
     {
+        // A game picked up — a save, or the game a latecomer is handed — is replayed
+        // from its record, command by command, into the very same state.
+        if (Session.Resume is { } record && record.Replay() is { } resumed)
+        {
+            Session.Resume = null;
+            _record = record;
+            return resumed;
+        }
+
+        Session.Resume = null;
+
+        if (Session.IsHost)
+        {
+            Session.ForgetOrphans();
+        }
+
         var party = Session.Sheets.ToList();
 
         if (party.Count >= ExplorerRoster.SmallestParty)
         {
+            _record = GameRecord.Start(Session.Seed, Session.Difficulty, Session.Party.Select(seat => seat.SheetId));
             return GameState.NewGame(party, Session.Seed, Session.Difficulty);
         }
 
@@ -803,6 +852,7 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        Remember(command);
         TrackFacing(actor, command);
         Refresh(result.Events);
         Chronicle(actor, command, result.Events);
@@ -810,6 +860,34 @@ public partial class AppRoot : Node3D
         if (Session.IsOnline)
         {
             Rpc(nameof(Play), CommandCodec.Encode(command), _game.Fingerprint);
+        }
+    }
+
+    /// <summary>
+    /// Adds a settled command to the record and, on the machine that owns the game —
+    /// alone, or hosting — saves it; a finished game leaves no save behind.
+    /// </summary>
+    private void Remember(GameCommand command)
+    {
+        if (_record is null)
+        {
+            return;
+        }
+
+        _record = _record.With(command);
+
+        if (!Session.IsHost)
+        {
+            return;
+        }
+
+        if (_game.IsOver)
+        {
+            SaveGame.Delete();
+        }
+        else
+        {
+            SaveGame.Write(_record);
         }
     }
 
@@ -841,6 +919,7 @@ public partial class AppRoot : Node3D
             return;
         }
 
+        Remember(command);
         TrackFacing(actor, command);
         Refresh(result.Events);
         Chronicle(actor, command, result.Events);
@@ -862,14 +941,17 @@ public partial class AppRoot : Node3D
         var actor = Due;
         var result = _game.Execute(command);
 
+        Remember(command);
         TrackFacing(actor, command);
         Refresh(result.Events);
         Chronicle(actor, command, result.Events);
 
         if (_game.Fingerprint != fingerprint)
         {
-            GD.PushError($"Désynchronisation après « {line} ».");
-            Say("Désynchronisation avec l'hôte : la partie n'est plus fiable.");
+            // Rather than play on a game that is no longer the host's, take the host's.
+            GD.PushError($"Désynchronisation après « {line} » : resynchronisation.");
+            Say("Désynchronisation avec l'hôte : la partie est rechargée depuis la sienne.");
+            Net.Instance?.AskForResync();
         }
     }
 
@@ -903,15 +985,32 @@ public partial class AppRoot : Node3D
                 return;
             }
 
-            RpcId(Session.HostPeer, nameof(AtTheTable));
+            RpcId(Session.HostPeer, nameof(AtTheTable), _record?.Commands.Count ?? 0);
         };
 
         AddChild(knock);
         Refresh();
     }
 
+    /// <summary>
+    /// A peer is at the table, having played <paramref name="commands"/> commands. One
+    /// that fell behind — the game moved on while it was still loading, and the
+    /// commands sent meanwhile found no table — is handed the game again rather than
+    /// let in to drift.
+    /// </summary>
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void AtTheTable() => Seat(Multiplayer.GetRemoteSenderId());
+    private void AtTheTable(int commands)
+    {
+        var peer = Multiplayer.GetRemoteSenderId();
+
+        if (_record is { } record && commands != record.Commands.Count)
+        {
+            Net.Instance?.HandGame(peer, record);
+            return;
+        }
+
+        Seat(peer);
+    }
 
     private void Seat(long peer)
     {
@@ -961,6 +1060,23 @@ public partial class AppRoot : Node3D
         Rpc(nameof(Seats), Session.Encode(Session.Party));
         Refresh();
         Say($"Le joueur {peer} a quitté la table ; l'hôte reprend ses Explorateurs.");
+    }
+
+    /// <summary>Someone took up seats the host had been minding: everyone is told.</summary>
+    public void SeatsChanged()
+    {
+        Rpc(nameof(Seats), Session.Encode(Session.Party));
+        Refresh();
+        Say("Un joueur revient et reprend ses Explorateurs.");
+    }
+
+    /// <summary>The host left: there is no table any more to play at.</summary>
+    private void HostGone()
+    {
+        Say("L'hôte a quitté la partie.");
+        _begun = false;
+        Refresh();
+        GetTree().CreateTimer(3.0).Timeout += () => GetTree().ChangeSceneToFile("res://scenes/app/Home.tscn");
     }
 
     [Rpc(CallLocal = false, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

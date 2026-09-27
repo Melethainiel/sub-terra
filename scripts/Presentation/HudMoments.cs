@@ -73,8 +73,14 @@ public partial class Hud
     /// </summary>
     private void ShowDie(string face, string name, string[] tumble, Color accent)
     {
+        // The last card may have gone on its own already: only a live one is taken off
+        // — freeing it twice threw, and the new card never showed.
         _dieTween?.Kill();
-        _die?.QueueFree();
+
+        if (IsInstanceValid(_die))
+        {
+            _die!.QueueFree();
+        }
 
         _die = new PanelContainer
         {
@@ -131,7 +137,14 @@ public partial class Hud
         }));
         _dieTween.TweenInterval(DieShown);
         _dieTween.TweenProperty(_die, "modulate:a", 0f, 0.35f);
-        _dieTween.TweenCallback(Callable.From(() => _die?.QueueFree()));
+        var card = _die;
+        _dieTween.TweenCallback(Callable.From(() =>
+        {
+            if (IsInstanceValid(card))
+            {
+                card.QueueFree();
+            }
+        }));
     }
 
     private static StyleBoxFlat WithMargins(StyleBoxFlat style, int horizontal, int vertical)

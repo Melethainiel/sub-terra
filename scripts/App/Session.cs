@@ -13,6 +13,15 @@ public static class Session
     /// <summary>The port a host listens on unless told otherwise.</summary>
     public const int DefaultPort = 27015;
 
+    /// <summary>The port this machine hosts on, or joins a host on.</summary>
+    public static int Port { get; set; } = DefaultPort;
+
+    /// <summary>
+    /// A game to pick up rather than begin: a save being resumed, or the game already
+    /// under way that a player joining late is handed. <c>null</c> for a fresh game.
+    /// </summary>
+    public static GameRecord? Resume { get; set; }
+
     /// <summary>Godot's id for the host. Everyone else gets a random one.</summary>
     public const long HostPeer = 1;
 
@@ -60,8 +69,41 @@ public static class Session
     /// A player who drops out leaves their Explorers behind; rather than freeze the
     /// expedition, the host picks them up.
     /// </summary>
-    public static void HandOver(long peer) =>
+    public static void HandOver(long peer)
+    {
+        foreach (var (seat, index) in Party.Select((seat, index) => (seat, index)))
+        {
+            if (seat.Peer == peer)
+            {
+                _orphans.Add(index);
+            }
+        }
+
         Party = [.. Party.Select(seat => seat.Peer == peer ? seat with { Peer = HostPeer } : seat)];
+    }
+
+    /// <summary>Seats the host only minds for a player who dropped out.</summary>
+    private static readonly HashSet<int> _orphans = [];
+
+    /// <summary>
+    /// A player joining a game under way takes over the seats the host has been
+    /// minding for whoever dropped out — the same player back, most likely, under a new
+    /// peer id. Returns whether there were any to take.
+    /// </summary>
+    public static bool Adopt(long peer)
+    {
+        if (_orphans.Count == 0)
+        {
+            return false;
+        }
+
+        Party = [.. Party.Select((seat, index) => _orphans.Contains(index) ? seat with { Peer = peer } : seat)];
+        _orphans.Clear();
+        return true;
+    }
+
+    /// <summary>A fresh table forgets whoever was minded at the last one.</summary>
+    public static void ForgetOrphans() => _orphans.Clear();
 
     /// <summary>The party on the wire: "guide:1;pretre:34;combattante:1".</summary>
     public static string Encode(IEnumerable<Seat> party) =>

@@ -26,6 +26,8 @@ public partial class AbilityShots : Node
 
     public override async void _Ready()
     {
+        SaveGame.Enabled = false;
+
         await Scenario("soins", ["guerisseuse", "pretre", "guide"], async () =>
         {
             Press(Key.Space);

@@ -79,6 +79,22 @@ public partial class Home : Control
         };
         menu.AddThemeConstantOverride("separation", 20);
 
+        // A game left mid-way, if one still replays: it comes first.
+        if (SaveGame.Read() is { } saved)
+        {
+            menu.AddChild(BuildLink("Reprendre la partie", () =>
+            {
+                Session.Resume = saved;
+                Session.Party = [.. saved.Party.Select(sheet => new Session.Seat(sheet, Session.HostPeer))];
+                Session.Seed = saved.Seed;
+                Session.Difficulty = saved.Difficulty;
+                Session.IsOnline = false;
+                Session.IsHost = true;
+                Session.LocalPeer = Session.HostPeer;
+                GetTree().ChangeSceneToFile("res://scenes/app/Main.tscn");
+            }));
+        }
+
         menu.AddChild(BuildLink("Solo", () =>
         {
             Session.RequestedMode = Session.LobbyMode.Solo;

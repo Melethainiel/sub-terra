@@ -127,7 +127,36 @@ un arbitrage est adressé (`PendingDecision.Chooser`). L'UI grise ce qui n'est p
 à vous pour le confort ; l'hôte le refuse pour la correction. Un joueur qui
 décroche laisse ses Explorateurs à l'hôte plutôt que de bloquer l'expédition.
 
-Pas encore : la reprise en cours de partie, la sauvegarde, le choix du port.
+Une partie tient tout entière dans un `GameRecord` : graine, difficulté, équipe, et
+la liste des commandes réglées. C'est un texte lisible, versionné, que `Replay()`
+reconstruit en la même partie. C'est à la fois la sauvegarde, et ce qu'on tend à un
+joueur qui arrive en retard.
+
+- **Sauvegarde.** La machine qui porte la partie (seule, ou hôte) écrit le record
+  après chaque commande (`SaveGame`, `user://saves/autosave.sav`, par renommage d'un
+  fichier temporaire). Une partie finie l'efface. L'accueil propose « Reprendre la
+  partie » tant qu'un record se rejoue.
+- **Arriver en cours de partie.** Un joueur qui se connecte à un hôte déjà attablé
+  reçoit le record, le rejoue, puis s'assoit. Il reprend les sièges que l'hôte gardait
+  pour un joueur parti (`Session.Adopt`), sinon il regarde. Le message passe par
+  l'autoload `Net`, présent en `/root/Net` sur chaque machine : un RPC trouve son
+  nœud par son chemin, et le nouveau venu est encore dans le lobby quand l'hôte lui
+  répond.
+- **Rattraper.** En frappant à la porte (`AtTheTable`), un client annonce combien de
+  commandes il a jouées. S'il en a manqué pendant son chargement, l'hôte lui retend
+  le record au lieu de le laisser diverger. Une empreinte qui ne concorde plus
+  déclenche la même resynchronisation.
+- **Port.** Le port se choisit dans le lobby (`Session.Port`, 27015 par défaut).
+
+`_net_shots.tscn` joue une partie réseau à deux instances, sans affichage : un hôte
+qui joue, un client qui arrive en cours de route. Les deux impriment leur empreinte
+à chaque commande. Avec `SUBTERRA_RUSH=1`, l'hôte joue pendant que le client charge,
+et le client doit malgré tout finir sur la même empreinte. Les rôles `save` et
+`resume` font l'aller-retour d'une sauvegarde, dans un dossier à part
+(`SUBTERRA_SAVES`).
+
+Pas encore : un hôte qui part emporte la partie. Les clients rentrent à l'accueil,
+et l'hôte peut la reprendre seul depuis sa sauvegarde.
 
 Les arbitrages sont déjà des commandes (`Decide`) adressées à un joueur nommé
 (`PendingDecision.Chooser`), et non des résolutions automatiques : côté réseau,

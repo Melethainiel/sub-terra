@@ -90,18 +90,18 @@ public partial class Lobby : Control
         Drop();
 
         var peer = new ENetMultiplayerPeer();
-        var error = peer.CreateServer(Session.DefaultPort, ExplorerRoster.LargestParty);
+        var error = peer.CreateServer(Session.Port, ExplorerRoster.LargestParty);
 
         if (error is not Error.Ok)
         {
-            Note($"Impossible d'ouvrir le port {Session.DefaultPort} : {error}");
+            Note($"Impossible d'ouvrir le port {Session.Port} : {error}");
             Refresh();
             return;
         }
 
         Multiplayer.MultiplayerPeer = peer;
         _online = true;
-        Note($"En attente de joueurs sur le port {Session.DefaultPort}…");
+        Note($"En attente de joueurs sur le port {Session.Port}…");
         Refresh();
     }
 
@@ -110,7 +110,7 @@ public partial class Lobby : Control
         Drop();
 
         var peer = new ENetMultiplayerPeer();
-        var error = peer.CreateClient(_addressText.Trim(), Session.DefaultPort);
+        var error = peer.CreateClient(_addressText.Trim(), Session.Port);
 
         if (error is not Error.Ok)
         {
@@ -131,6 +131,17 @@ public partial class Lobby : Control
         Multiplayer.MultiplayerPeer = null;
         _party.Clear();
         _online = false;
+    }
+
+    /// <summary>The lobby is gone once the table opens; so are its ears on the network,
+    /// which would otherwise go on answering from a freed node.</summary>
+    public override void _ExitTree()
+    {
+        Multiplayer.PeerConnected -= WelcomePeer;
+        Multiplayer.PeerDisconnected -= SeeOffPeer;
+        Multiplayer.ConnectedToServer -= OnConnected;
+        Multiplayer.ConnectionFailed -= OnConnectionFailed;
+        Multiplayer.ServerDisconnected -= OnHostGone;
     }
 
     private bool IsHost => !_online || Multiplayer.IsServer();
@@ -387,12 +398,40 @@ public partial class Lobby : Control
         _netModeRow = new MarginContainer();
         row.AddChild(_netModeRow);
 
+        row.AddChild(BuildPortField());
+
         _joinField = BuildJoinField();
         row.AddChild(_joinField);
 
         row.AddChild(BuildStatusBanner());
 
         return row;
+    }
+
+    /// <summary>The port, for hosting and joining alike — the default one may be taken,
+    /// or closed on the host's router.</summary>
+    private Control BuildPortField()
+    {
+        var box = new HBoxContainer();
+        box.AddThemeConstantOverride("separation", 6);
+
+        var label = new Label { Text = "Port", VerticalAlignment = VerticalAlignment.Center };
+        label.AddThemeColorOverride("font_color", Paper.Ink);
+        label.AddThemeFontSizeOverride("font_size", 12);
+
+        var input = new LineEdit { Text = Session.Port.ToString(), CustomMinimumSize = new Vector2(70, 0), MaxLength = 5 };
+        Paper.TextField(input);
+        input.TextChanged += text =>
+        {
+            if (int.TryParse(text, out var port) && port is >= 1024 and <= 65535)
+            {
+                Session.Port = port;
+            }
+        };
+
+        box.AddChild(label);
+        box.AddChild(input);
+        return box;
     }
 
     private Control BuildJoinField()
