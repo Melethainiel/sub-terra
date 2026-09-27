@@ -150,6 +150,42 @@ public class GameActionsTests
     }
 
     [Fact]
+    public void SpikesDoNotKnockDownAnExplorerAlreadyOnTheFloor()
+    {
+        var sprung = 0;
+
+        for (var seed = 1UL; seed <= 40; seed++)
+        {
+            var game = GameWith(CorridorSouth(1, TileKind.SpikeTrap), seed: seed, roster: [("Fragile", 1), ("Prêtre", 5)]);
+            game.Play(new Overexert());
+            game.Play(new EndTurn());
+
+            for (var turn = 0; turn < 10 && game.CurrentExplorer.Id != game.Explorers[0].Id; turn++)
+            {
+                game.Play(new EndTurn());
+            }
+
+            if (game.IsOver || !game.CurrentExplorer.IsDown || game.CurrentExplorer.Cell != Start)
+            {
+                continue;
+            }
+
+            var result = game.Play(new Move(Direction.South));
+
+            if (!result.Events.Any(e => e is TrapSprung))
+            {
+                continue;
+            }
+
+            sprung++;
+            Assert.DoesNotContain(result.Events, e => e is ExplorerWentDown or HealthLost);
+            Assert.True(game.Explorers[0].IsDown);
+        }
+
+        Assert.True(sprung > 0);
+    }
+
+    [Fact]
     public void HealingGivesBackAHeartOnYourOwnTile()
     {
         var game = GameWith(TempleSetup.CreateBoard(), roster: [("Guide", 3)]);

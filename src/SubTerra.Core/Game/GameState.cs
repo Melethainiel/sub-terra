@@ -1934,10 +1934,13 @@ public sealed class GameState
 
         var lost = explorer.Wound(amount);
 
-        if (lost > 0)
+        // Already on the floor, there is nothing left to lose and no falling again.
+        if (lost == 0)
         {
-            yield return new HealthLost(explorer.Id, lost, explorer.Health);
+            yield break;
         }
+
+        yield return new HealthLost(explorer.Id, lost, explorer.Health);
 
         if (explorer.IsDown)
         {
